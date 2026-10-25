@@ -28,7 +28,8 @@ OKR＋タスク管理のマルチテナント SaaS。セキュリティ評価・
 
 - `main` への直接 push はしない。PR を作り、CI（lint・型チェック・build・gitleaks・CodeQL）を通す
 - PR では `/code-review` を実行し、指摘と対応を PR に書く
-- `main` にマージするとステージング、`production` にマージすると本番に Vercel が自動デプロイする
+- 環境は本番とローカル開発の2つだけ（ステージングはない）。`production` にマージすると本番に Vercel が自動デプロイする。`main` へのマージではデプロイされない
+- マイグレーションは必ずローカルの Supabase（`supabase db reset`）で確認してから本番に流す。本番の DB パスワードや secret キーをローカルのファイルやコードに置かない
 
 ## コマンド
 
@@ -37,4 +38,7 @@ npm run dev        # 開発サーバー
 npm run lint
 npm run typecheck
 npm run build
+supabase start     # ローカルの Supabase（Docker）
+supabase db reset  # マイグレーションをローカルで適用し直す
+supabase stop
 ```
