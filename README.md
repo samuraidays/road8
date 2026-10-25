@@ -8,9 +8,13 @@
 
 ## 開発
 
+開発はローカルの Supabase（Docker）で行う。ステージング環境はない。
+
 ```bash
 npm ci
-cp .env.example .env.local   # 値を入れる（コミットしない）
+supabase start                # ローカルの Supabase を起動（初回はイメージを取得）
+supabase status               # API URL と publishable key を確認
+cp .env.example .env.local    # 上の値を入れる（コミットしない）
 npm run dev
 ```
 
