@@ -5,6 +5,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # react-dom は同じバージョンの react を前提にするため、別々の PR だと CI が失敗する
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
   - package-ecosystem: github-actions
     directory: /
     schedule:
