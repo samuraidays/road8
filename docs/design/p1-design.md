@@ -104,7 +104,9 @@ erDiagram
 | `google_connections` | SELECT（自分の行のメタ情報だけ） |
 | `audit_logs` | SELECT（Owner が自テナント分だけ）。**INSERT・UPDATE・DELETE は与えない** |
 
-列単位の制限が必要な箇所（例：`tasks.tenant_id` を UPDATE で書き換えさせない）は、列単位の grant かトリガーで止める。
+列単位の制限が必要な箇所（例：`tasks.tenant_id` を UPDATE で書き換えさせない）は、列単位の grant で止める。`invitations` と `google_connections` は SELECT も列単位なので、アプリは `select *` を使わず列を列挙する。
+
+既定の権限の取り消しは、`postgres` が作るオブジェクトだけが対象。`supabase_admin` が `public` に作るオブジェクト（拡張機能など）には、今も `anon` / `authenticated` への自動付与が残る（`postgres` からは変更できない）。`public` に拡張機能を入れない運用にし、RLS のテスト（anon の権限がないこと）で検出する。
 
 ### 3-2. 補助関数（`private` スキーマ）
 
@@ -124,6 +126,8 @@ RLS から呼ぶ所属確認の関数は `private` スキーマに置く。`priv
 |---|---|---|---|---|
 | `tenants` | 所属している | ログインしていれば可（`created_by = 自分`）。作成と同時にトリガーで Owner の所属を作る | Owner | Owner |
 | `memberships` | 同じテナントの所属者 | **不可**（招待の受諾はサーバーが `service_role` で行う） | Owner（ロール変更。最後の Owner は降格できない：トリガー） | Owner（他人を外す）、本人（脱退。最後の Owner は不可） |
+
+最後の Owner の保護（トリガー）は、テナントの行をロックしてから確認する（2人の Owner が同時にお互いを降格して Owner が0人になるのを防ぐ）。**最後の Owner のアカウントは削除できない**ので、退会・アカウント削除の手順では、先に Owner を引き継ぐか、テナントを削除する。
 | `invitations` | Owner | Owner | Owner（取り消しだけ） | 不可 |
 | `profiles` | 自分、または同じテナントの所属者 | 不可（サインアップ時にトリガーで作る） | 自分 | 不可 |
 | `objectives` | 所属している | 所属している | 所属している | **Owner**（§8 #2） |
@@ -140,7 +144,7 @@ RLS から呼ぶ所属確認の関数は `private` スキーマに置く。`priv
 | アプリ監査ログの書き込み | `authenticated` に INSERT を与えないため（利用者が偽のログを書けないように） |
 | Google のトークンの保存・読み出し・削除 | Vault（`vault.secrets`・`vault.decrypted_secrets`）を利用者のロールから触らせないため（§8 #5） |
 
-`service_role` のキーはサーバー側の環境変数だけに置き、`server-only` のモジュールからしか読めないようにする。
+`service_role` のキーはサーバー側の環境変数だけに置き、`server-only` のモジュールからしか読めないようにする。`service_role` で書き込むときは、操作した利用者の ID を `x-road8-actor` ヘッダーで渡す。監査ログのトリガーは、ロールが `service_role` のときだけこのヘッダーを操作者として採用し、`metadata.via = service_role` を残す。
 
 ---
 
