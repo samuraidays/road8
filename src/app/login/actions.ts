@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { parseLogin } from "@/lib/credentials";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthEndpointClient } from "@/lib/supabase/server";
 import type { FormState } from "@/components/auth-form";
 
 function loginErrorMessage(code: string | undefined): string {
@@ -22,13 +22,13 @@ function loginErrorMessage(code: string | undefined): string {
 export async function signIn(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = parseLogin(formData);
   if (!parsed.ok) {
-    return { error: parsed.error };
+    return { email: String(formData.get("email") ?? ""), error: parsed.error };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.value);
+  const auth = await createAuthEndpointClient();
+  const { error } = await auth.signInWithPassword(parsed.value);
   if (error) {
-    return { error: loginErrorMessage(error.code) };
+    return { email: parsed.value.email, error: loginErrorMessage(error.code) };
   }
 
   redirect("/app");

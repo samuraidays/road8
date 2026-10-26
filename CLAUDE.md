@@ -21,6 +21,7 @@ OKR＋タスク管理のマルチテナント SaaS。セキュリティ評価・
 - **認可は各 Server Action・Route Handler の中で確認する**。middleware（proxy）だけに任せない
 - URL やフォームのテナントIDを信用しない。サーバー側で `memberships` を確認してから処理する
 - `service_role` キーを使うのは、本人の権限を超える処理（監査ログの書き込み、招待の受諾など）だけ。使った箇所は `docs/` の一覧に追記する
+- secret キー（`SUPABASE_SECRET_KEY`）を使ったクライアントでデータを読み書きしない。`createAuthEndpointClient()` はログイン・サインアップの Auth 呼び出し専用（`.auth` しか返さない）
 - 監査ログのテーブルには、`authenticated` に INSERT・UPDATE・DELETE を与えない
 - `invitations` と `google_connections` は列単位で SELECT を与えている（`token_hash`・`vault_secret_id` を読ませない）。supabase-js では `.select()` や `.select('*')` を使わず、**必要な列を列挙する**（`*` は権限エラーになる）
 - `service_role` で書き込むときは、操作した利用者の ID を `x-road8-actor` ヘッダーで渡す（監査ログの操作者になる。利用者の JWT では無視される）

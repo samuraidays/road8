@@ -40,5 +40,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // セッションを使うのはログイン後のページ（/app 配下）と、そこでの Server Action だけ。公開ページでは Auth を呼ばない
+  matcher: ["/app/:path*"],
 };

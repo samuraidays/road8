@@ -1,5 +1,5 @@
 // 環境変数の読み出し。値がなければ使う時点で例外にする（ビルド時には読まない）
-function required(name: string, value: string | undefined): string {
+export function required(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(`環境変数 ${name} が設定されていません`);
   }

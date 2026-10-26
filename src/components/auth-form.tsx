@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 
-export type FormState = { error?: string; message?: string };
+// email はエラー時に入力欄へ戻すため（フォームの送信後に入力欄が空になるのを防ぐ）。パスワードは戻さない
+export type FormState = { email?: string; error?: string; message?: string };
 
 type Props = {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
@@ -21,6 +22,7 @@ export function AuthForm({ action, submitLabel, passwordAutoComplete, passwordHi
         <input
           name="email"
           type="email"
+          defaultValue={state.email}
           autoComplete="email"
           required
           maxLength={254}

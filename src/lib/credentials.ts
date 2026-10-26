@@ -1,4 +1,6 @@
-// メールアドレスとパスワードの入力チェック。Supabase 側の設定（12文字以上）と合わせる
+// メールアドレスとパスワードの入力チェック。
+// パスワードの最小文字数は Supabase Auth の設定（ローカル：supabase/config.toml、本番：ダッシュボード）と必ず合わせる。
+// Auth API は公開キーで直接呼べるので、本当の制限は Supabase 側の設定であり、ここは画面での案内のため
 export const PASSWORD_MIN_LENGTH = 12;
 // bcrypt は72バイトを超える部分を無視するため、それより長いパスワードは受け付けない
 const PASSWORD_MAX_BYTES = 72;
