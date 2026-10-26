@@ -1,0 +1,173 @@
+# 機能×権限マトリクス（叩き台 2026-10-26）
+#
+# 行 = Server Action / Route Handler 単位の操作、列 = 利用者の区分。
+# 同じ定義から、CI のテナント越えテストと、脆弱性診断のチェックリストを作る。
+# 設計の説明は docs/design/p1-design.md を参照。
+#
+# 区分:
+#   anonymous  : ログインしていない
+#   non_member : ログインしているが、対象テナントに所属していない（テナント越えの攻撃者）
+#   member     : 対象テナントの Member
+#   owner      : 対象テナントの Owner
+#
+# 値:
+#   allow : 許可
+#   deny  : 拒否
+#   self  : 自分に関するものだけ許可
+#
+# data_api: ブラウザから Data API を直接叩いた場合に、同じ制限を RLS で守る必要があるテーブルと操作。
+#           テストでは「アプリ経由」と「Data API 直接」の両方を確かめる。
+
+version: 1
+
+actions:
+  # ---- テナント ----
+  tenant.create:
+    description: テナントを作る（作った人が Owner になる）
+    roles: { anonymous: deny, non_member: allow, member: allow, owner: allow }
+    data_api: [{ table: tenants, op: insert }]
+  tenant.read:
+    description: テナントの情報を見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: tenants, op: select }]
+  tenant.update:
+    description: テナント名を変える
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: tenants, op: update }]
+  tenant.delete:
+    description: テナントを削除する（未決事項 #4）
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: tenants, op: delete }]
+
+  # ---- メンバー ----
+  membership.list:
+    description: メンバー一覧を見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: memberships, op: select }, { table: profiles, op: select }]
+  membership.change_role:
+    description: メンバーのロールを変える（最後の Owner は降格できない）
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: memberships, op: update }]
+  membership.remove:
+    description: 他のメンバーを外す
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: memberships, op: delete }]
+  membership.leave:
+    description: 自分がテナントから抜ける（最後の Owner は不可）
+    roles: { anonymous: deny, non_member: deny, member: self, owner: self }
+    data_api: [{ table: memberships, op: delete }]
+  membership.insert_direct:
+    description: 招待を通さずに所属を作る（どの区分にも許さない。Data API 直接の攻撃を想定）
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: deny }
+    data_api: [{ table: memberships, op: insert }]
+
+  # ---- 招待 ----
+  invitation.create:
+    description: 招待リンクを発行する
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: invitations, op: insert }]
+  invitation.list:
+    description: 発行済みの招待を見る
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: invitations, op: select }]
+  invitation.revoke:
+    description: 招待を取り消す
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: invitations, op: update }]
+  invitation.accept:
+    description: 招待を受ける（有効なトークンを持つログイン済みの人だけ。サーバーが service_role で処理）
+    roles: { anonymous: deny, non_member: allow, member: deny, owner: deny }
+    data_api: []
+    notes: トークンの期限切れ・使用済み・取り消し済み・別テナントのトークンは拒否する
+
+  # ---- プロフィール ----
+  profile.read:
+    description: 同じテナントのメンバーの表示名を見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: profiles, op: select }]
+    notes: 共有しているテナントが1つもない利用者の表示名は見えない
+  profile.update_self:
+    description: 自分の表示名を変える
+    roles: { anonymous: deny, non_member: self, member: self, owner: self }
+    data_api: [{ table: profiles, op: update }]
+
+  # ---- OKR ----
+  objective.list:
+    description: Objective を見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: objectives, op: select }]
+  objective.create:
+    description: Objective を作る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: objectives, op: insert }]
+  objective.update:
+    description: Objective を編集する
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: objectives, op: update }]
+  objective.delete:
+    description: Objective を削除する（未決事項 #2）
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: objectives, op: delete }]
+
+  key_result.list:
+    description: Key Result を見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: key_results, op: select }]
+  key_result.create:
+    description: Key Result を作る（親の Objective と同じテナントのみ）
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: key_results, op: insert }]
+  key_result.update:
+    description: Key Result を編集する（進捗率の手入力を含む）
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: key_results, op: update }]
+  key_result.delete:
+    description: Key Result を削除する
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: key_results, op: delete }]
+
+  # ---- タスク ----
+  task.list:
+    description: タスクを見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: tasks, op: select }]
+  task.create:
+    description: タスクを作る（親の Key Result と同じテナント、担当者はテナントのメンバーのみ）
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: tasks, op: insert }]
+  task.update:
+    description: タスクを編集する（担当者・期日・ステータス）
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: tasks, op: update }]
+  task.delete:
+    description: タスクを削除する
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: tasks, op: delete }]
+
+  # ---- Google カレンダー連携 ----
+  google.connect:
+    description: 自分の Google カレンダーを連携する（追加の同意を求める）
+    roles: { anonymous: deny, non_member: self, member: self, owner: self }
+    data_api: []
+  google.disconnect:
+    description: 自分の連携を解除する（トークンを削除・失効させる）
+    roles: { anonymous: deny, non_member: self, member: self, owner: self }
+    data_api: []
+  google.status:
+    description: 自分の連携状態を見る（トークンそのものは返さない）
+    roles: { anonymous: deny, non_member: self, member: self, owner: self }
+    data_api: [{ table: google_connections, op: select }]
+  task.add_to_calendar:
+    description: タスクを自分のカレンダーに登録する（自分が見られるタスクだけ）
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: []
+
+  # ---- 監査ログ ----
+  audit_log.list:
+    description: 自テナントの監査ログを見る
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: audit_logs, op: select }]
+  audit_log.write_direct:
+    description: 監査ログを直接書き換える（どの区分にも許さない。Data API 直接の攻撃を想定）
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: deny }
+    data_api: [{ table: audit_logs, op: insert }, { table: audit_logs, op: update }, { table: audit_logs, op: delete }]
