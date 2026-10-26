@@ -1,4 +1,4 @@
-# 機能×権限マトリクス（叩き台 2026-10-26）
+# 機能×権限マトリクス（確定版 v1 2026-10-26）
 #
 # 行 = Server Action / Route Handler 単位の操作、列 = 利用者の区分。
 # 同じ定義から、CI のテナント越えテストと、脆弱性診断のチェックリストを作る。
@@ -35,7 +35,7 @@ actions:
     roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
     data_api: [{ table: tenants, op: update }]
   tenant.delete:
-    description: テナントを削除する（未決事項 #4）
+    description: テナントを削除する（設計書 §8 #4）
     roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
     data_api: [{ table: tenants, op: delete }]
 
@@ -105,7 +105,7 @@ actions:
     roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
     data_api: [{ table: objectives, op: update }]
   objective.delete:
-    description: Objective を削除する（未決事項 #2）
+    description: Objective を削除する（設計書 §8 #2）
     roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
     data_api: [{ table: objectives, op: delete }]
 
