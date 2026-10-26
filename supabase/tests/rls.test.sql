@@ -3,11 +3,11 @@
 -- 登場人物:
 --   alice : テナントA の Owner
 --   mike  : テナントA の Member
---   bob   : テナントB の Owner（テナントA から見ると non_member）
+--   bob   : テナントB の Owner（テナントA から見ると non_member。後半でテナントA の Member にもなる）
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(34);
+select plan(50);
 
 -- ---------------------------------------------------------------------------
 -- 構造のチェック
@@ -68,7 +68,7 @@ end;
 $$;
 -- マイグレーションで関数の既定の実行権限を取り消しているため、テスト用の関数にだけ付与する
 grant execute on function pg_temp.login(uuid) to authenticated;
-grant execute on function pg_temp.logout() to authenticated;
+grant execute on function pg_temp.logout() to authenticated, service_role;
 
 -- alice がテナントA、bob がテナントB を作る
 select pg_temp.login('11111111-1111-1111-1111-111111111111');
@@ -219,10 +219,147 @@ select throws_ok($$ select * from public.profiles $$, '42501', null, 'anonymous:
 reset role;
 
 -- ---------------------------------------------------------------------------
--- テナントの削除（最後の Owner の保護が、連鎖削除を止めないこと）
+-- 招待（Owner だけ）
 -- ---------------------------------------------------------------------------
 
 select pg_temp.login('11111111-1111-1111-1111-111111111111');
+select lives_ok(
+  $$ insert into public.invitations (tenant_id, token_hash) values ('aaaaaaaa-0000-0000-0000-000000000000', 'hash-1') $$,
+  'invitation.create: Owner は招待を発行できる'
+);
+select is((select count(*)::int from public.invitations), 1, 'invitation.list: Owner は招待を見られる');
+
+select pg_temp.login('22222222-2222-2222-2222-222222222222');
+select throws_ok(
+  $$ insert into public.invitations (tenant_id, token_hash) values ('aaaaaaaa-0000-0000-0000-000000000000', 'hash-2') $$,
+  '42501', null,
+  'invitation.create: Member は招待を発行できない'
+);
+select is_empty(
+  $$ update public.invitations set revoked_at = now() returning id $$,
+  'invitation.revoke: Member は招待を取り消せない'
+);
+
+select pg_temp.login('33333333-3333-3333-3333-333333333333');
+select throws_ok(
+  $$ insert into public.invitations (tenant_id, token_hash) values ('aaaaaaaa-0000-0000-0000-000000000000', 'hash-3') $$,
+  '42501', null,
+  'invitation.create: 他テナントの人は招待を発行できない'
+);
+
+-- ---------------------------------------------------------------------------
+-- Google 連携（自分の行のメタ情報だけ）
+-- ---------------------------------------------------------------------------
+
+select pg_temp.logout();
+insert into public.google_connections (user_id, vault_secret_id, scopes) values
+  ('11111111-1111-1111-1111-111111111111', gen_random_uuid(), 'calendar.app.created'),
+  ('22222222-2222-2222-2222-222222222222', gen_random_uuid(), 'calendar.app.created');
+
+select pg_temp.login('11111111-1111-1111-1111-111111111111');
+select is((select count(*)::int from public.google_connections), 1, 'google.status: 自分の連携だけ見える');
+select throws_ok(
+  $$ select * from public.google_connections $$,
+  '42501', null,
+  'google.status: vault_secret_id は読めない（select * は列単位の権限で拒否される）'
+);
+
+-- ---------------------------------------------------------------------------
+-- service_role での書き込みの監査ログ（招待の受諾の代わり）
+-- ---------------------------------------------------------------------------
+
+select pg_temp.logout();
+select set_config('role', 'service_role', true);
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select set_config('request.headers', '{"x-road8-actor":"33333333-3333-3333-3333-333333333333"}', true);
+insert into public.memberships (tenant_id, user_id, role)
+values ('aaaaaaaa-0000-0000-0000-000000000000', '33333333-3333-3333-3333-333333333333', 'member');
+select pg_temp.logout();
+select set_config('request.headers', '', true);
+
+select is(
+  (select actor_user_id from public.audit_logs
+   where action = 'memberships.insert' and target_id = '33333333-3333-3333-3333-333333333333'
+   order by id desc limit 1),
+  '33333333-3333-3333-3333-333333333333'::uuid,
+  'service_role の書き込みでも、サーバーが渡した操作者が監査ログに残る'
+);
+select is(
+  (select metadata ->> 'via' from public.audit_logs
+   where action = 'memberships.insert' and target_id = '33333333-3333-3333-3333-333333333333'
+   order by id desc limit 1),
+  'service_role',
+  'service_role 経由の書き込みであることが監査ログに残る'
+);
+
+-- 利用者が同じヘッダーを付けても、操作者は偽装できない
+select pg_temp.login('22222222-2222-2222-2222-222222222222');
+select set_config('request.headers', '{"x-road8-actor":"33333333-3333-3333-3333-333333333333"}', true);
+update public.tasks set status = 'done';
+select pg_temp.logout();
+select set_config('request.headers', '', true);
+select is(
+  (select actor_user_id from public.audit_logs where action = 'tasks.update' order by id desc limit 1),
+  '22222222-2222-2222-2222-222222222222'::uuid,
+  '利用者はヘッダーで監査ログの操作者を偽装できない'
+);
+
+-- ---------------------------------------------------------------------------
+-- メンバーの管理と、最後の Owner の保護
+-- ---------------------------------------------------------------------------
+
+select pg_temp.login('33333333-3333-3333-3333-333333333333');
+select isnt_empty(
+  $$ delete from public.memberships
+     where tenant_id = 'aaaaaaaa-0000-0000-0000-000000000000' and user_id = '33333333-3333-3333-3333-333333333333'
+     returning user_id $$,
+  'membership.leave: Member は自分で抜けられる'
+);
+
+select pg_temp.logout();
+insert into public.memberships (tenant_id, user_id, role)
+values ('aaaaaaaa-0000-0000-0000-000000000000', '33333333-3333-3333-3333-333333333333', 'member');
+
+select pg_temp.login('11111111-1111-1111-1111-111111111111');
+select isnt_empty(
+  $$ update public.memberships set role = 'owner'
+     where tenant_id = 'aaaaaaaa-0000-0000-0000-000000000000' and user_id = '22222222-2222-2222-2222-222222222222'
+     returning user_id $$,
+  'membership.change_role: Owner は Member を Owner にできる'
+);
+select isnt_empty(
+  $$ delete from public.memberships
+     where tenant_id = 'aaaaaaaa-0000-0000-0000-000000000000' and user_id = '33333333-3333-3333-3333-333333333333'
+     returning user_id $$,
+  'membership.remove: Owner は他のメンバーを外せる'
+);
+select isnt_empty(
+  $$ delete from public.memberships
+     where tenant_id = 'aaaaaaaa-0000-0000-0000-000000000000' and user_id = '11111111-1111-1111-1111-111111111111'
+     returning user_id $$,
+  'membership.leave: 他に Owner がいれば Owner も抜けられる'
+);
+
+select pg_temp.login('22222222-2222-2222-2222-222222222222');
+select throws_ok(
+  $$ update public.memberships set role = 'member'
+     where tenant_id = 'aaaaaaaa-0000-0000-0000-000000000000' and user_id = '22222222-2222-2222-2222-222222222222' $$,
+  'P0001', null,
+  'membership.change_role: 最後の Owner は自分を降格できない'
+);
+
+select pg_temp.logout();
+select throws_ok(
+  $$ delete from auth.users where id = '22222222-2222-2222-2222-222222222222' $$,
+  'P0001', null,
+  'アカウントの削除：最後の Owner のアカウントは、引き継ぎかテナントの削除の後でないと消せない'
+);
+
+-- ---------------------------------------------------------------------------
+-- テナントの削除（最後の Owner の保護が、連鎖削除を止めないこと）
+-- ---------------------------------------------------------------------------
+
+select pg_temp.login('22222222-2222-2222-2222-222222222222');
 select isnt_empty(
   $$ delete from public.tenants where id = 'aaaaaaaa-0000-0000-0000-000000000000' returning id $$,
   'tenant.delete: Owner はテナントを削除できる'

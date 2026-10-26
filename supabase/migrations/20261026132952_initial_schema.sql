@@ -300,9 +300,24 @@ begin
   if tg_op = 'UPDATE' and new.role = 'owner' then
     return new;
   end if;
-  -- テナントの削除による連鎖削除では、親のテナントはもう見えない
-  if not exists (select 1 from public.tenants t where t.id = old.tenant_id) then
+  -- 同じテナントの Owner の変更を1つずつ処理する。ロックせずに確認すると、
+  -- 2人の Owner が同時にお互いを降格・削除したとき、両方が「もう1人いる」と判断して Owner が0人になる。
+  -- テナントの行を FOR NO KEY UPDATE で取ると、所属の追加（外部キーの KEY SHARE）は妨げずに、この処理どうしだけを直列にできる。
+  -- テナントの削除による連鎖削除では、親のテナントはもう見えないので、ロックも取れず、そのまま許可する
+  perform 1 from public.tenants t where t.id = old.tenant_id for no key update;
+  if not found then
     return coalesce(new, old);
+  end if;
+  -- アカウントの削除（auth.users → profiles → memberships の連鎖削除）で、最後の Owner がいなくなる場合
+  if tg_op = 'DELETE' and not exists (select 1 from public.profiles p where p.user_id = old.user_id) then
+    if not exists (
+      select 1 from public.memberships m
+      where m.tenant_id = old.tenant_id and m.role = 'owner' and m.user_id <> old.user_id
+    ) then
+      raise exception 'cannot delete the account of the last owner of tenant %; transfer ownership or delete the tenant first', old.tenant_id
+        using errcode = 'P0001';
+    end if;
+    return old;
   end if;
   if not exists (
     select 1 from public.memberships m
@@ -332,8 +347,17 @@ declare
   v_tenant_id uuid;
   v_target_id text;
   v_changed   text[];
+  v_actor     uuid;
+  v_metadata  jsonb := '{}'::jsonb;
 begin
   v_row := to_jsonb(coalesce(new, old));
+  v_actor := (select auth.uid());
+  -- service_role での書き込み（招待の受諾など）は auth.uid() が空になる。
+  -- サーバーが操作した利用者を x-road8-actor ヘッダーで渡し、service_role のときだけそれを採用する（利用者の JWT では偽装できない）
+  if v_actor is null and (select auth.role()) = 'service_role' then
+    v_actor := nullif(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-road8-actor', '')::uuid;
+    v_metadata := jsonb_build_object('via', 'service_role');
+  end if;
   v_old := case when tg_op = 'UPDATE' then to_jsonb(old) end;
   v_tenant_id := case when tg_table_name = 'tenants' then (v_row ->> 'id')::uuid
                       else (v_row ->> 'tenant_id')::uuid end;
@@ -349,11 +373,11 @@ begin
   insert into public.audit_logs (tenant_id, actor_user_id, action, target_type, target_id, metadata)
   values (
     v_tenant_id,
-    (select auth.uid()),
+    v_actor,
     tg_table_name || '.' || lower(tg_op),
     tg_table_name,
     v_target_id,
-    case when v_changed is not null then jsonb_build_object('changed', to_jsonb(v_changed)) else '{}'::jsonb end
+    v_metadata || case when v_changed is not null then jsonb_build_object('changed', to_jsonb(v_changed)) else '{}'::jsonb end
   );
   return coalesce(new, old);
 end;
@@ -438,72 +462,72 @@ alter table public.audit_logs enable row level security;
 
 -- profiles: 自分、または同じテナントの所属者
 create policy profiles_select on public.profiles for select to authenticated
-  using (user_id = (select auth.uid()) or (select private.shares_tenant(user_id)));
+  using (user_id = (select auth.uid()) or private.shares_tenant(user_id));
 create policy profiles_update on public.profiles for update to authenticated
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
 
 -- tenants
 create policy tenants_select on public.tenants for select to authenticated
-  using ((select private.is_member(id)));
+  using (private.is_member(id));
 create policy tenants_insert on public.tenants for insert to authenticated
   with check (created_by = (select auth.uid()));
 create policy tenants_update on public.tenants for update to authenticated
-  using ((select private.is_owner(id)))
-  with check ((select private.is_owner(id)));
+  using (private.is_owner(id))
+  with check (private.is_owner(id));
 create policy tenants_delete on public.tenants for delete to authenticated
-  using ((select private.is_owner(id)));
+  using (private.is_owner(id));
 
 -- memberships: INSERT のポリシーは作らない（招待の受諾はサーバーが service_role で行う）
 create policy memberships_select on public.memberships for select to authenticated
-  using ((select private.is_member(tenant_id)));
+  using (private.is_member(tenant_id));
 create policy memberships_update on public.memberships for update to authenticated
-  using ((select private.is_owner(tenant_id)))
-  with check ((select private.is_owner(tenant_id)));
+  using (private.is_owner(tenant_id))
+  with check (private.is_owner(tenant_id));
 create policy memberships_delete on public.memberships for delete to authenticated
-  using ((select private.is_owner(tenant_id)) or user_id = (select auth.uid()));
+  using (private.is_owner(tenant_id) or user_id = (select auth.uid()));
 
 -- invitations: Owner だけ
 create policy invitations_select on public.invitations for select to authenticated
-  using ((select private.is_owner(tenant_id)));
+  using (private.is_owner(tenant_id));
 create policy invitations_insert on public.invitations for insert to authenticated
-  with check ((select private.is_owner(tenant_id)) and invited_by = (select auth.uid()));
+  with check (private.is_owner(tenant_id) and invited_by = (select auth.uid()));
 create policy invitations_update on public.invitations for update to authenticated
-  using ((select private.is_owner(tenant_id)))
-  with check ((select private.is_owner(tenant_id)));
+  using (private.is_owner(tenant_id))
+  with check (private.is_owner(tenant_id));
 
 -- objectives: 削除は Owner だけ（設計書 §8 #2）
 create policy objectives_select on public.objectives for select to authenticated
-  using ((select private.is_member(tenant_id)));
+  using (private.is_member(tenant_id));
 create policy objectives_insert on public.objectives for insert to authenticated
-  with check ((select private.is_member(tenant_id)) and created_by = (select auth.uid()));
+  with check (private.is_member(tenant_id) and created_by = (select auth.uid()));
 create policy objectives_update on public.objectives for update to authenticated
-  using ((select private.is_member(tenant_id)))
-  with check ((select private.is_member(tenant_id)));
+  using (private.is_member(tenant_id))
+  with check (private.is_member(tenant_id));
 create policy objectives_delete on public.objectives for delete to authenticated
-  using ((select private.is_owner(tenant_id)));
+  using (private.is_owner(tenant_id));
 
 -- key_results
 create policy key_results_select on public.key_results for select to authenticated
-  using ((select private.is_member(tenant_id)));
+  using (private.is_member(tenant_id));
 create policy key_results_insert on public.key_results for insert to authenticated
-  with check ((select private.is_member(tenant_id)) and created_by = (select auth.uid()));
+  with check (private.is_member(tenant_id) and created_by = (select auth.uid()));
 create policy key_results_update on public.key_results for update to authenticated
-  using ((select private.is_member(tenant_id)))
-  with check ((select private.is_member(tenant_id)));
+  using (private.is_member(tenant_id))
+  with check (private.is_member(tenant_id));
 create policy key_results_delete on public.key_results for delete to authenticated
-  using ((select private.is_member(tenant_id)));
+  using (private.is_member(tenant_id));
 
 -- tasks
 create policy tasks_select on public.tasks for select to authenticated
-  using ((select private.is_member(tenant_id)));
+  using (private.is_member(tenant_id));
 create policy tasks_insert on public.tasks for insert to authenticated
-  with check ((select private.is_member(tenant_id)) and created_by = (select auth.uid()));
+  with check (private.is_member(tenant_id) and created_by = (select auth.uid()));
 create policy tasks_update on public.tasks for update to authenticated
-  using ((select private.is_member(tenant_id)))
-  with check ((select private.is_member(tenant_id)));
+  using (private.is_member(tenant_id))
+  with check (private.is_member(tenant_id));
 create policy tasks_delete on public.tasks for delete to authenticated
-  using ((select private.is_member(tenant_id)));
+  using (private.is_member(tenant_id));
 
 -- google_connections: 自分の行のメタ情報だけ
 create policy google_connections_select on public.google_connections for select to authenticated
@@ -511,4 +535,4 @@ create policy google_connections_select on public.google_connections for select 
 
 -- audit_logs: 自テナントの Owner だけが読める。書き込みのポリシーは作らない
 create policy audit_logs_select on public.audit_logs for select to authenticated
-  using ((select private.is_owner(tenant_id)));
+  using (private.is_owner(tenant_id));
