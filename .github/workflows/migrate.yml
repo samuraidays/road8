@@ -1,0 +1,41 @@
+name: Migrate production DB
+
+# production ブランチにマイグレーションが入ったら、本番の Supabase に適用する。
+# Environment「production」の承認（必須レビュアー）が通るまで実行されない。
+on:
+  push:
+    branches: [production]
+    paths: ["supabase/migrations/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.122.0
+      - name: Build connection string
+        # Supabase の直接接続は IPv6 のみのため、IPv4 の共有プーラー（セッションモード、5432）を使う
+        env:
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          POOLER_HOST: ${{ vars.SUPABASE_POOLER_HOST }}
+        run: |
+          if [ -z "$DB_PASSWORD" ]; then echo "SUPABASE_DB_PASSWORD is not set" >&2; exit 1; fi
+          encoded=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""))')
+          echo "::add-mask::$encoded"
+          echo "DB_URL=postgresql://postgres.${PROJECT_REF}:${encoded}@${POOLER_HOST}:5432/postgres" >> "$GITHUB_ENV"
+      - name: Dry run
+        run: supabase db push --db-url "$DB_URL" --dry-run
+      - name: Apply migrations
+        run: supabase db push --db-url "$DB_URL"
