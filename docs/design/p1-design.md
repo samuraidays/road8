@@ -143,6 +143,7 @@ RLS から呼ぶ所属確認の関数は `private` スキーマに置く。`priv
 | 招待の受諾 | 受諾する時点では、まだそのテナントに所属していないため。トークンのハッシュ・有効期限・未使用を確認してから所属を作る |
 | アプリ監査ログの書き込み | `authenticated` に INSERT を与えないため（利用者が偽のログを書けないように） |
 | Google のトークンの保存・読み出し・削除 | Vault（`vault.secrets`・`vault.decrypted_secrets`）を利用者のロールから触らせないため（§8 #5） |
+| ログイン・サインアップでの Auth の呼び出し（`createAuthEndpointClient`） | サーバーから Auth を呼ぶと、Supabase にはサーバーの IP しか見えない。利用者の IP を `Sb-Forwarded-For` で渡すには secret キーが必要（Supabase の仕様）。**Auth の呼び出しにだけ使い、データの読み書きには使わない**。secret キーが未設定なら IP を渡さずに publishable キーで呼ぶ |
 
 `service_role` のキーはサーバー側の環境変数だけに置き、`server-only` のモジュールからしか読めないようにする。`service_role` で書き込むときは、操作した利用者の ID を `x-road8-actor` ヘッダーで渡す。監査ログのトリガーは、ロールが `service_role` のときだけこのヘッダーを操作者として採用し、`metadata.via = service_role` を残す。
 
@@ -155,7 +156,11 @@ RLS から呼ぶ所属確認の関数は `private` スキーマに置く。`priv
 | ログイン方法 | Google ログイン＋メールとパスワード（§8 #1） |
 | パスワードの条件 | 12文字以上（Supabase の既定は6文字）。漏えいしたパスワードの拒否は有料プランの機能【要確認】 |
 | メール確認 | 有効にする。本番でメールを送るには独自の SMTP が必要【要確認：Supabase 既定のメール送信の制限】 |
-| セッション | Supabase Auth の既定（Cookie は `@supabase/ssr`）。ロール変更・脱退は DB を毎回参照するので、トークンの失効を待たずに反映される |
+| セッション | `@supabase/ssr` の Cookie。**ブラウザ側で Supabase を使わないので HttpOnly にする**（`SameSite=Lax`、本番は `Secure`）。`proxy.ts` は `/app` 配下だけでトークンの更新を行い（公開ページでは Auth を呼ばない）、認可は各ページ・Server Action で `requireUser()`（`getUser()` で Auth サーバーに確認）を呼んで行う。ロール変更・脱退は DB を毎回参照するので、トークンの失効を待たずに反映される |
+| ログアウト | この端末のセッションだけを終了する（`scope: local`）。失敗したらエラーにする |
+| 利用者の IP | ログイン・サインアップでは、Vercel が設定する `x-forwarded-for` の先頭（IP として正しいものだけ）を `Sb-Forwarded-For` で Auth に渡す。Auth のレート制限とログが利用者ごとになる（本番で IP 転送の設定を有効にする必要がある） |
+| エラーの表示 | ログイン失敗は「メールアドレスかパスワードが違います」に統一（アカウントの有無を区別しない）。サインアップは、登録済みのアドレスでも同じ「確認メールを送りました」を返す |
+| 確認メールの戻り先 | サーバーの環境変数 `SITE_URL` から作る（リクエストの Host ヘッダーは使わない）。戻り先 `/auth/callback` は固定で、`next` などのパラメーターでリダイレクト先を変えられない |
 | 招待 | Owner が招待リンクを発行して手渡しする（メールは送らない）。リンクにはトークン本体、DB にはハッシュ。有効期限は72時間（§8 #7） |
 | ログイン失敗の記録 | `auth.audit_log_entries` には **失敗が記録されない**（§7 #1）。失敗の正本は Auth サービスのログ（本番は Log Explorer、無料プランは1日分）。成功・サインアップなどは `auth.audit_log_entries` |
 
