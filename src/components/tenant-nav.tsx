@@ -9,6 +9,7 @@ const ITEMS = [
   { label: "ホーム", path: "" },
   { label: "ゴール", path: "/goals" },
   { label: "OKR", path: "/okr" },
+  { label: "振り返り", path: "/reviews/weekly" },
   { label: "タスク", path: null },
   { label: "メンバー", path: "/members" },
 ] as const;
@@ -30,7 +31,9 @@ export function TenantNav() {
           );
         }
         const href = `${base}${item.path}`;
-        const active = pathname === href;
+        // ホームは完全一致、ほかは最初の階層（/reviews など）の配下なら選択中にする
+        const section = `${base}${item.path.split("/").slice(0, 2).join("/")}`;
+        const active = item.path === "" ? pathname === href : pathname.startsWith(section);
         return (
           <Link
             key={item.label}
