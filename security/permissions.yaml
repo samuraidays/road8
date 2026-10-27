@@ -17,6 +17,8 @@
 #
 # data_api: ブラウザから Data API を直接叩いた場合に、同じ制限を RLS で守る必要があるテーブルと操作。
 #           テストでは「アプリ経由」と「Data API 直接」の両方を確かめる。
+# app: false = アプリに画面・Server Action を作らない操作（計画書 v1.4、設計書 §9）。
+#           アプリ経由では実行できないが、Data API からは roles の範囲で実行できるので、診断では Data API 直接だけを確かめる。
 
 version: 1
 
@@ -50,10 +52,12 @@ actions:
     data_api: [{ table: memberships, op: update }]
   membership.remove:
     description: 他のメンバーを外す
+    app: false
     roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
     data_api: [{ table: memberships, op: delete }]
   membership.leave:
     description: 自分がテナントから抜ける（最後の Owner は不可）
+    app: false
     roles: { anonymous: deny, non_member: deny, member: self, owner: self }
     data_api: [{ table: memberships, op: delete }]
   membership.insert_direct:
@@ -68,10 +72,12 @@ actions:
     data_api: [{ table: invitations, op: insert }]
   invitation.list:
     description: 発行済みの招待を見る
+    app: false
     roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
     data_api: [{ table: invitations, op: select }]
   invitation.revoke:
     description: 招待を取り消す
+    app: false
     roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
     data_api: [{ table: invitations, op: update }]
   invitation.accept:
