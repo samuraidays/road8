@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { DisplayNameForm, InviteForm, RoleForm } from "@/components/member-forms";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { listMembers } from "@/lib/members";
+import { listMembers, memberLabel } from "@/lib/members";
 import { ROLE_LABEL } from "@/lib/roles";
 import { requireTenant } from "@/lib/tenants";
 import { changeRole, createInvitation, updateDisplayName } from "./actions";
@@ -31,7 +31,7 @@ async function Members({ params }: Pick<PageProps<"/app/[tenantId]/members">, "p
         {members.map((m) => (
           <li key={m.userId} className="flex items-center justify-between gap-4 px-4 py-3">
             <span className="min-w-0 truncate">
-              {m.displayName || <span className="text-muted-foreground">名前未設定</span>}
+              <span className={m.displayName ? undefined : "text-muted-foreground"}>{memberLabel(m, members)}</span>
               {m.isMe ? <span className="ml-2 text-xs text-muted-foreground">（あなた）</span> : null}
             </span>
             {isOwner ? (

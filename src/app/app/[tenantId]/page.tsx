@@ -17,7 +17,7 @@ async function TenantHome({ params }: Pick<PageProps<"/app/[tenantId]">, "params
     <div className="flex flex-col gap-2">
       <h1 className="text-xl font-semibold break-words">{tenant.name}</h1>
       <p className="text-sm text-muted-foreground">あなたのロール：{ROLE_LABEL[tenant.role]}</p>
-      <p className="text-sm text-muted-foreground">OKR・タスクの画面は、これから追加します。</p>
+      <p className="text-sm text-muted-foreground">タスクの画面は、これから追加します。</p>
     </div>
   );
 }

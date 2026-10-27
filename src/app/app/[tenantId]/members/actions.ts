@@ -4,9 +4,11 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { siteUrl } from "@/lib/env-server";
 import { generateInvitationToken, hashInvitationToken } from "@/lib/invitation-token";
+import { logDbError } from "@/lib/log";
 import type { Role } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid, requireTenant } from "@/lib/tenants";
+import { codePointLength } from "@/lib/text";
 
 export type InviteState = { link?: string; error?: string };
 export type RoleChangeState = { error?: string };
@@ -39,7 +41,7 @@ export async function createInvitation(tenantId: string, _prev: InviteState, for
     invited_by: user.id,
   });
   if (error) {
-    console.error("invitation.create failed", { userId: user.id, tenantId: tenant.id, code: error.code, message: error.message });
+    logDbError("invitation.create", { userId: user.id, tenantId: tenant.id }, error);
     return { error: "招待リンクを作れませんでした。時間をおいて試してください" };
   }
 
@@ -71,7 +73,7 @@ export async function changeRole(tenantId: string, _prev: RoleChangeState, formD
     if (error.code === "P0001") {
       return { error: "最後の Owner は降格できません" };
     }
-    console.error("membership.change_role failed", { userId: user.id, tenantId: tenant.id, code: error.code, message: error.message });
+    logDbError("membership.change_role", { userId: user.id, tenantId: tenant.id }, error);
     return { error: "ロールを変えられませんでした。時間をおいて試してください" };
   }
   if (data.length === 0) {
@@ -90,14 +92,14 @@ export async function changeRole(tenantId: string, _prev: RoleChangeState, formD
 export async function updateDisplayName(_prev: DisplayNameState, formData: FormData): Promise<DisplayNameState> {
   const user = await requireUser();
   const displayName = String(formData.get("displayName") ?? "").trim();
-  if ([...displayName].length > DISPLAY_NAME_MAX) {
+  if (codePointLength(displayName) > DISPLAY_NAME_MAX) {
     return { displayName, error: `表示名は${DISPLAY_NAME_MAX}文字以内で入力してください` };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.from("profiles").update({ display_name: displayName }).eq("user_id", user.id);
   if (error) {
-    console.error("profile.update_self failed", { userId: user.id, code: error.code, message: error.message });
+    logDbError("profile.update_self", { userId: user.id }, error);
     return { displayName, error: "表示名を変えられませんでした。時間をおいて試してください" };
   }
 

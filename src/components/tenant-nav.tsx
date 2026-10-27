@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 // まだ作っていない画面は「準備中」として表示だけする
 const ITEMS = [
   { label: "ホーム", path: "" },
-  { label: "OKR", path: null },
+  { label: "OKR", path: "/okr" },
   { label: "タスク", path: null },
   { label: "メンバー", path: "/members" },
 ] as const;
