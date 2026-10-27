@@ -1,4 +1,4 @@
-# 機能×権限マトリクス（確定版 v1 2026-10-26）
+# 機能×権限マトリクス（v2 2026-10-27。v1 は 2026-10-26。v2 で設計書 §10 の操作を追加）
 #
 # 行 = Server Action / Route Handler 単位の操作、列 = 利用者の区分。
 # 同じ定義から、CI のテナント越えテストと、脆弱性診断のチェックリストを作る。
@@ -13,7 +13,7 @@
 # 値:
 #   allow : 許可
 #   deny  : 拒否
-#   self  : 自分に関するものだけ許可
+#   self  : 自分に関するものだけ許可（同じテナントの他人の分は、Owner でも不可）
 #
 # data_api: ブラウザから Data API を直接叩いた場合に、同じ制限を RLS で守る必要があるテーブルと操作。
 #           テストでは「アプリ経由」と「Data API 直接」の両方を確かめる。
@@ -131,6 +131,76 @@ actions:
     description: Key Result を削除する
     roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
     data_api: [{ table: key_results, op: delete }]
+
+  # ---- 人生のゴールと柱（設計書 §10） ----
+  life_goal.read:
+    description: 人生のゴールを見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: life_goals, op: select }]
+  life_goal.write:
+    description: 人生のゴールを書く・変える
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: life_goals, op: insert }, { table: life_goals, op: update }]
+  pillar.read:
+    description: 柱を見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: pillars, op: select }]
+  pillar.write:
+    description: 柱を作る・変える・削除する
+    roles: { anonymous: deny, non_member: deny, member: deny, owner: allow }
+    data_api: [{ table: pillars, op: insert }, { table: pillars, op: update }, { table: pillars, op: delete }]
+  reason.read:
+    description: 柱・Objective の「なぜ」を見る（同じテナントでも本人の分だけ）
+    roles: { anonymous: deny, non_member: deny, member: self, owner: self }
+    data_api: [{ table: reasons, op: select }]
+  reason.write:
+    description: 「なぜ」を書く・変える・消す（本人の分だけ）
+    roles: { anonymous: deny, non_member: deny, member: self, owner: self }
+    data_api: [{ table: reasons, op: insert }, { table: reasons, op: update }, { table: reasons, op: delete }]
+
+  # ---- 数値の記録・習慣（設計書 §10） ----
+  kr_measurement.list:
+    description: KR の数値の記録を見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: kr_measurements, op: select }]
+  kr_measurement.write:
+    description: 数値を記録する・直す・消す
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: kr_measurements, op: insert }, { table: kr_measurements, op: update }, { table: kr_measurements, op: delete }]
+  habit.list:
+    description: 習慣と実施の記録を見る
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: habits, op: select }, { table: habit_checks, op: select }]
+  habit.write:
+    description: 習慣を作る・変える・消す
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: habits, op: insert }, { table: habits, op: update }, { table: habits, op: delete }]
+  habit.check:
+    description: 習慣の実施を記録する・取り消す
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: habit_checks, op: insert }, { table: habit_checks, op: delete }]
+
+  # ---- 振り返り（設計書 §10。文章は同じテナントでも本人だけ） ----
+  weekly_review.read:
+    description: 週の振り返りを見る（本人の分だけ）
+    roles: { anonymous: deny, non_member: deny, member: self, owner: self }
+    data_api: [{ table: weekly_reviews, op: select }]
+  weekly_review.write:
+    description: 週の振り返りを書く・変える・消す（本人の分だけ）
+    roles: { anonymous: deny, non_member: deny, member: self, owner: self }
+    data_api: [{ table: weekly_reviews, op: insert }, { table: weekly_reviews, op: update }, { table: weekly_reviews, op: delete }]
+  quarterly_review.read:
+    description: 四半期の振り返りの文章を見る（本人の分だけ）
+    roles: { anonymous: deny, non_member: deny, member: self, owner: self }
+    data_api: [{ table: quarterly_reviews, op: select }]
+  quarterly_review.write:
+    description: 四半期の振り返りの文章を書く・変える・消す（本人の分だけ）
+    roles: { anonymous: deny, non_member: deny, member: self, owner: self }
+    data_api: [{ table: quarterly_reviews, op: insert }, { table: quarterly_reviews, op: update }, { table: quarterly_reviews, op: delete }]
+  key_result.score:
+    description: 四半期の終わりに KR を採点し、次の扱い（続ける・やめる・変える）を決める（メンバーに見える）
+    roles: { anonymous: deny, non_member: deny, member: allow, owner: allow }
+    data_api: [{ table: key_results, op: update }]
 
   # ---- タスク ----
   task.list:

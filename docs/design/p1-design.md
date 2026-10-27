@@ -259,3 +259,64 @@ road8 は個人利用で、実際に他人を招待する予定はない。そ�
 - 一覧は `memberships` と `profiles`（表示名）を利用者の JWT で読む（RLS で自テナントの所属者だけ見える）。メールアドレスは表示しない（`profiles` に持っていない）
 - 表示名が空の人は「名前未設定」と表示する
 - ロールの変更は Owner だけ。Server Action で `requireTenant()` と Owner であることを確かめ、`memberships.role` を利用者の JWT で UPDATE する（RLS と最後の Owner を守るトリガーが最終的に止める）
+
+## 10. 人生のゴールと OKR の見直し（2026-10-27、計画書 v1.5）
+
+OKR を「人生のゴールを達成するための行動管理」として使えるようにする。画面は4つ：人生のゴール、OKR（年 → 四半期 → Objective → Key Result → タスク・習慣）、週の振り返り、四半期の振り返り。
+
+### 10-1. 見える範囲（2種類）
+
+| 範囲 | 対象 | RLS の条件 |
+|---|---|---|
+| テナントのメンバー | 人生のゴール、柱、Objective、Key Result、数値の記録、習慣と実施の記録、KR の採点 | `private.is_member(tenant_id)`（既存の OKR と同じ） |
+| **本人だけ**（同じテナントの Owner からも見えない） | 柱・Objective の「なぜ」、週の振り返り、四半期の振り返りの文章 | `user_id = (select auth.uid()) and private.is_member(tenant_id)` |
+
+本人だけのデータは、メンバーに見せる表の列にせず **別の表** に分ける（列にすると、行を読めるメンバーに一緒に読まれるため。列単位の grant でも隠せるが、本人かどうかで列の見え方を変えることはできない）。
+
+誰も招待しなければ、実際に見られるのは本人だけになる。招待したときに見せたくないものだけを「本人だけ」にした。
+
+### 10-2. 追加・変更する表
+
+| 表 | 主な列 | ポイント |
+|---|---|---|
+| `life_goals`（新規） | `tenant_id`（主キー。1テナントに1つ）、`statement`（2000文字まで） | テナントの最終ゴール |
+| `pillars`（新規） | `id`、`tenant_id`、`position`、`title`（100文字まで）、`description`（1000文字まで） | 柱（例：① 事業をつくる）。`unique (id, tenant_id)` |
+| `objectives`（変更） | `pillar_id` を追加（任意。`(pillar_id, tenant_id)` の複合外部キー、柱を消したら空に）、`year`・`quarter`（1〜4）を追加。`period_start`・`period_end` は四半期に置き換えて削除 | 本番の既存行は `period_start`（なければ作成日）から年と四半期を埋めてから削除する |
+| `key_results`（変更） | `kind`（`manual` / `metric`）、`start_value`・`target_value`（数値）、`unit`（20文字まで）、`score`（0.0〜1.0、四半期の採点）、`next_action`（`continue` / `stop` / `change`） | `metric` の進捗は最新の記録から計算する（`progress` は `manual` のときだけ使う）。採点と次の扱いはメンバーに見せる |
+| `kr_measurements`（新規） | `id`、`tenant_id`、`key_result_id`（複合外部キー）、`measured_on`（日付）、`value`、`created_by` | 数値の記録。`unique (key_result_id, measured_on)`（同じ日は上書き） |
+| `habits`（新規） | `id`、`tenant_id`、`key_result_id`（複合外部キー）、`title`（200文字まで）、`times_per_week`（1〜7）、`archived_at` | 習慣 |
+| `habit_checks`（新規） | `tenant_id`、`habit_id`（複合外部キー）、`done_on`（日付）、`created_by`。主キー `(habit_id, done_on)` | 実施の記録（1日1回まで） |
+| `reasons`（新規・本人だけ） | `id`、`tenant_id`、`user_id`、`pillar_id` か `objective_id` のどちらか1つ（check で強制、それぞれ複合外部キー）、`body`（2000文字まで） | 「なぜ」。`unique (user_id, pillar_id)`・`unique (user_id, objective_id)` |
+| `weekly_reviews`（新規・本人だけ） | `id`、`tenant_id`、`user_id`、`week_start`（月曜の日付）、`went_well`・`went_wrong`・`next_focus`（各2000文字まで） | `unique (tenant_id, user_id, week_start)` |
+| `quarterly_reviews`（新規・本人だけ） | `id`、`tenant_id`、`user_id`、`year`、`quarter`、`learned`・`next_steps`（各2000文字まで） | `unique (tenant_id, user_id, year, quarter)`。KR の採点は `key_results` 側 |
+
+本人だけの表の `user_id` は、`(tenant_id, user_id)` で `memberships` への複合外部キーにする（テナントを抜けたら消える：`on delete cascade`）。
+
+タスクに「いつやるか」の時間帯（`scheduled_start`・`scheduled_end`）を足すのは、タスクの画面を作るときに決める。週の振り返りの「来週やる3つ」は、タスクとして作る。
+
+### 10-3. 権限（grant）と RLS
+
+| 表 | SELECT | INSERT | UPDATE | DELETE |
+|---|---|---|---|---|
+| `life_goals` | メンバー | Owner | Owner（`statement`） | 不可（テナントと一緒に消える） |
+| `pillars` | メンバー | Owner | Owner（`position`・`title`・`description`） | Owner |
+| `objectives`・`key_results` | メンバー（既存） | メンバー（既存） | メンバー（追加した列を含む。`score`・`next_action` もメンバー） | 既存のまま（Objective は Owner、KR はメンバー） |
+| `kr_measurements` | メンバー | メンバー | メンバー（`value`） | メンバー |
+| `habits` | メンバー | メンバー | メンバー（`title`・`times_per_week`・`archived_at`） | メンバー |
+| `habit_checks` | メンバー | メンバー（`created_by` は本人） | 不可 | メンバー |
+| `reasons`・`weekly_reviews`・`quarterly_reviews` | **本人だけ** | **本人だけ**（`user_id` は本人） | **本人だけ**（文章の列だけ） | **本人だけ** |
+
+- 列単位の grant で、`tenant_id`・`user_id`・`key_result_id` などを UPDATE で書き換えさせない（既存の方針どおり）
+- 人生のゴールと柱の編集を Owner に限るのは、テナントの「方針」にあたるため。個人利用では本人が Owner なので影響はない
+
+### 10-4. 監査ログ
+
+- 新しい表にも `audit_row_change` を付ける。記録するのは操作と変更された列名だけで、文章の中身は残さない（既存の方針どおり）
+- ただし本人だけの表（`reasons`・振り返り）の監査ログも、テナントの Owner には見える。**中身は見えないが、「いつ振り返りを書いたか」は Owner に分かる**。個人利用では問題にならないため受け入れ、評価で扱う
+
+### 10-5. 診断で確かめること（追加分）
+
+- 同じテナントの Member・Owner が、他人の「なぜ」・振り返りを、アプリ経由と Data API 直接のどちらでも読めない・書けない・消せない
+- 本人だけの表に、他人の `user_id` で INSERT できない（なりすまし）
+- 柱・KR・習慣に、他テナントの親をつなげない（複合外部キー）
+- 数値の記録・採点の値の範囲（`score` は 0.0〜1.0、`times_per_week` は 1〜7）
