@@ -3,9 +3,8 @@ import Link from "next/link";
 import { CreateTenantForm } from "@/components/create-tenant-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
+import { ROLE_LABEL } from "@/lib/roles";
 import { listMyTenants } from "@/lib/tenants";
-
-const ROLE_LABEL = { owner: "Owner", member: "Member" } as const;
 
 export default function AppPage() {
   return (

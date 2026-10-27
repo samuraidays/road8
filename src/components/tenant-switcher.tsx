@@ -1,14 +1,15 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuLinkItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -16,7 +17,6 @@ import type { TenantSummary } from "@/lib/tenants";
 
 // テナントの切り替えは URL の移動だけ。所属の確認は移動先のページがサーバーで行う
 export function TenantSwitcher({ tenants }: { tenants: TenantSummary[] }) {
-  const router = useRouter();
   const { tenantId } = useParams<{ tenantId?: string }>();
   const current = tenants.find((t) => t.id === tenantId);
 
@@ -30,17 +30,17 @@ export function TenantSwitcher({ tenants }: { tenants: TenantSummary[] }) {
         <DropdownMenuGroup>
           <DropdownMenuLabel>テナント</DropdownMenuLabel>
           {tenants.map((t) => (
-            <DropdownMenuItem key={t.id} onClick={() => router.push(`/app/${t.id}`)}>
+            <DropdownMenuLinkItem key={t.id} render={<Link href={`/app/${t.id}`} />}>
               <span className="truncate">{t.name}</span>
               {t.id === current?.id ? <CheckIcon className="ml-auto" /> : null}
-            </DropdownMenuItem>
+            </DropdownMenuLinkItem>
           ))}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push("/app")}>
+        <DropdownMenuLinkItem render={<Link href="/app" />}>
           <PlusIcon />
           新しいテナントを作る
-        </DropdownMenuItem>
+        </DropdownMenuLinkItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

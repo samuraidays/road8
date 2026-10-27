@@ -36,6 +36,8 @@ export async function createTenant(_prev: CreateTenantState, formData: FormData)
   const supabase = await createClient();
   const { error } = await supabase.from("tenants").insert({ id, name, created_by: user.id });
   if (error) {
+    // 利用者には詳細を返さず、原因の調査用にサーバーのログへ残す（入力値・トークンは含めない）
+    console.error("tenant.create failed", { userId: user.id, code: error.code, message: error.message });
     return { name, error: "テナントを作成できませんでした。時間をおいて試してください" };
   }
 

@@ -2,9 +2,8 @@ import "server-only";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { requireUser, type CurrentUser } from "@/lib/auth";
+import type { Role } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
-
-export type Role = "owner" | "member";
 
 export type TenantSummary = {
   id: string;
@@ -30,11 +29,16 @@ function toSummary(row: MembershipRow): TenantSummary | null {
 
 // 自分が所属するテナントの一覧（名前順）。RLS で同じテナントの所属は見えるため、自分の行に絞る
 export async function listMyTenants(user: CurrentUser): Promise<TenantSummary[]> {
+  return listTenantsOf(user.id);
+}
+
+// ヘッダーとページの両方から呼ばれるため、1回のリクエストの中では1度だけ取得する
+const listTenantsOf = cache(async (userId: string): Promise<TenantSummary[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("memberships")
     .select("role, tenants!inner(id, name)")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .returns<MembershipRow[]>();
   if (error) {
     throw new Error("テナントの一覧を取得できませんでした");
@@ -43,7 +47,7 @@ export async function listMyTenants(user: CurrentUser): Promise<TenantSummary[]>
     .map(toSummary)
     .filter((t): t is TenantSummary => t !== null)
     .sort((a, b) => a.name.localeCompare(b.name, "ja"));
-}
+});
 
 // テナント配下のページ・Server Action の入口。URL やフォームのテナント ID を信用せず、所属を DB で確かめる。
 // 存在しないテナントと所属していないテナントを区別しない（どちらも 404）

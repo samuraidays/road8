@@ -1,7 +1,6 @@
 import { Suspense } from "react";
+import { ROLE_LABEL } from "@/lib/roles";
 import { requireTenant } from "@/lib/tenants";
-
-const ROLE_LABEL = { owner: "Owner", member: "Member" } as const;
 
 export default function TenantHomePage({ params }: PageProps<"/app/[tenantId]">) {
   return (
