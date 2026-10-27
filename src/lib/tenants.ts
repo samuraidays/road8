@@ -23,6 +23,10 @@ type MembershipRow = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function isUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
+}
+
 function toSummary(row: MembershipRow): TenantSummary | null {
   return row.tenants ? { id: row.tenants.id, name: row.tenants.name, role: row.role } : null;
 }
@@ -52,7 +56,7 @@ const listTenantsOf = cache(async (userId: string): Promise<TenantSummary[]> => 
 // テナント配下のページ・Server Action の入口。URL やフォームのテナント ID を信用せず、所属を DB で確かめる。
 // 存在しないテナントと所属していないテナントを区別しない（どちらも 404）
 export const requireTenant = cache(async (tenantId: string): Promise<TenantContext> => {
-  if (!UUID_PATTERN.test(tenantId)) {
+  if (!isUuid(tenantId)) {
     notFound();
   }
   const user = await requireUser();
