@@ -15,7 +15,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listPillarOptions } from "@/lib/goals";
 import { listMembers, memberLabel } from "@/lib/members";
-import { countObjectivesByQuarter, listObjectives, type KeyResult, type Objective } from "@/lib/okr";
+import { listObjectives, summarizeQuarters, type KeyResult, type Objective } from "@/lib/okr";
 import { parseYearQuarter } from "@/lib/okr-input";
 import { currentYearQuarter, quarterMonths, todayInJapan } from "@/lib/period";
 import { requireTenant } from "@/lib/tenants";
@@ -56,9 +56,9 @@ async function Okr({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/okr
   const requested = parseYearQuarter(String(query.year ?? ""), String(query.q ?? ""));
   const view: View = requested.ok ? requested.value : current;
 
-  const [objectives, counts, members, pillars] = await Promise.all([
+  const [objectives, quarters, members, pillars] = await Promise.all([
     listObjectives(context, view.year, view.quarter),
-    countObjectivesByQuarter(context, view.year),
+    summarizeQuarters(context, view.year),
     listMembers(context),
     listPillarOptions(context),
   ]);
@@ -96,7 +96,8 @@ async function Okr({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/okr
               )}
             >
               Q{q} {quarterMonths(q)}
-              {isCurrent ? "・進行中" : ended ? "・終了" : ""}（{counts[q - 1]}）
+              {isCurrent ? "・進行中" : ended ? "・終了" : ""}（{quarters[q - 1].count}）
+              {quarters[q - 1].score !== null ? ` ${quarters[q - 1].score?.toFixed(1)}` : ""}
             </Link>
           );
         })}
