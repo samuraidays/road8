@@ -39,3 +39,10 @@ export async function listMembers({ user, tenant }: TenantContext): Promise<Memb
       a.role === b.role ? a.displayName.localeCompare(b.displayName, "ja") : a.role === "owner" ? -1 : 1,
     );
 }
+
+// 画面に出すメンバーの名前。表示名が空の人や、同じ表示名の人がいる場合は、ユーザー ID の先頭8文字を添えて見分けられるようにする
+export function memberLabel(member: Member, members: Member[]): string {
+  const name = member.displayName || "名前未設定";
+  const ambiguous = !member.displayName || members.some((m) => m.userId !== member.userId && m.displayName === member.displayName);
+  return ambiguous ? `${name}（${member.userId.slice(0, 8)}）` : name;
+}
