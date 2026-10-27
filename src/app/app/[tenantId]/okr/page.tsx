@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon, RepeatIcon } from "lucide-react";
 import { MetricChart } from "@/components/metric-chart";
+import { TaskForm } from "@/components/task-forms";
+import { TaskItem } from "@/components/task-list";
 import {
   DeleteButton,
   HabitForm,
@@ -18,7 +20,9 @@ import { listMembers, memberLabel } from "@/lib/members";
 import { listObjectives, summarizeQuarters, type KeyResult, type Objective } from "@/lib/okr";
 import { parseYearQuarter } from "@/lib/okr-input";
 import { currentYearQuarter, quarterMonths, todayInJapan } from "@/lib/period";
+import { getGoogleStatus } from "@/lib/tasks";
 import { requireTenant } from "@/lib/tenants";
+import { createTask } from "../tasks/actions";
 import { cn } from "@/lib/utils";
 import {
   createHabit,
@@ -56,11 +60,12 @@ async function Okr({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/okr
   const requested = parseYearQuarter(String(query.year ?? ""), String(query.q ?? ""));
   const view: View = requested.ok ? requested.value : current;
 
-  const [objectives, quarters, members, pillars] = await Promise.all([
+  const [objectives, quarters, members, pillars, google] = await Promise.all([
     listObjectives(context, view.year, view.quarter),
     summarizeQuarters(context, view.year),
     listMembers(context),
     listPillarOptions(context),
+    getGoogleStatus(context.user.id),
   ]);
   const memberOptions: Option[] = members.map((m) => ({ id: m.userId, label: memberLabel(m, members) }));
   const pillarOptions: Option[] = pillars.map((p) => ({ id: p.id, label: p.title }));
@@ -117,6 +122,7 @@ async function Okr({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/okr
             members={memberOptions}
             isOwner={isOwner}
             today={today}
+            googleConnected={google.connected}
           />
         ))
       )}
@@ -148,6 +154,7 @@ function ObjectiveCard({
   members,
   isOwner,
   today,
+  googleConnected,
 }: {
   tenantId: string;
   objective: Objective;
@@ -155,6 +162,7 @@ function ObjectiveCard({
   members: Option[];
   isOwner: boolean;
   today: string;
+  googleConnected: boolean;
 }) {
   const owner = members.find((m) => m.id === o.ownerUserId);
   const pillar = pillars.find((p) => p.id === o.pillarId);
@@ -184,7 +192,7 @@ function ObjectiveCard({
 
         <ul className="flex flex-col gap-5">
           {o.keyResults.map((kr) => (
-            <KeyResultItem key={kr.id} tenantId={tenantId} keyResult={kr} today={today} />
+            <KeyResultItem key={kr.id} tenantId={tenantId} keyResult={kr} today={today} members={members} googleConnected={googleConnected} />
           ))}
         </ul>
 
@@ -222,7 +230,19 @@ function formatValue(value: number | null, unit: string): string {
   return value === null ? "" : `${value}${unit}`;
 }
 
-function KeyResultItem({ tenantId, keyResult: kr, today }: { tenantId: string; keyResult: KeyResult; today: string }) {
+function KeyResultItem({
+  tenantId,
+  keyResult: kr,
+  today,
+  members,
+  googleConnected,
+}: {
+  tenantId: string;
+  keyResult: KeyResult;
+  today: string;
+  members: Option[];
+  googleConnected: boolean;
+}) {
   const latest = kr.measurements.at(-1);
   const summary =
     kr.kind === "metric"
@@ -267,9 +287,18 @@ function KeyResultItem({ tenantId, keyResult: kr, today }: { tenantId: string; k
         })}
       </ul>
 
+      {kr.tasks.length > 0 ? (
+        <ul className="flex flex-col gap-2 pl-3">
+          {kr.tasks.map((t) => (
+            <TaskItem key={t.id} tenantId={tenantId} task={t} members={members} googleConnected={googleConnected} />
+          ))}
+        </ul>
+      ) : null}
+
       <details className="text-sm">
-        <summary className="cursor-pointer text-muted-foreground">習慣を追加・Key Result を編集</summary>
+        <summary className="cursor-pointer text-muted-foreground">タスク・習慣を追加、Key Result を編集</summary>
         <div className="mt-2 flex flex-col gap-3">
+          <TaskForm action={createTask.bind(null, tenantId, kr.id)} members={members} submitLabel="タスクを追加" idPrefix={`new-task-${kr.id}`} />
           <HabitForm action={createHabit.bind(null, tenantId, kr.id)} idPrefix={`habit-${kr.id}`} />
           {kr.habits.map((h) => (
             <DeleteButton

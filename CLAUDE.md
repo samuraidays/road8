@@ -23,7 +23,7 @@ OKR＋タスク管理のマルチテナント SaaS。セキュリティ評価・
 - `service_role` キーを使うのは、本人の権限を超える処理（監査ログの書き込み、招待の受諾など）だけ。使った箇所は `docs/` の一覧に追記する
 - secret キー（`SUPABASE_SECRET_KEY`）を使うのは次の2か所だけ。ほかで secret キーのクライアントを作らない
   - `createAuthEndpointClient()`（`src/lib/supabase/server.ts`）：ログイン・サインアップの Auth 呼び出し専用（`.auth` しか返さない）。データの読み書きには使わない
-  - `src/lib/supabase/service.ts`：`service_role` で行う処理を用途ごとの関数として公開する（いまは `acceptInvitation()` だけ）。汎用のクライアントは外に出さない。用途を足すときは設計書 §3-4 の一覧も更新する
+  - `src/lib/supabase/service.ts`：`service_role` で行う処理を用途ごとの関数として公開する（招待の受諾と Google カレンダー連携のトークンの保存・読み出し・削除）。汎用のクライアントは外に出さない。用途を足すときは設計書 §3-4 の一覧も更新する
 - 監査ログのテーブルには、`authenticated` に INSERT・UPDATE・DELETE を与えない
 - `invitations` と `google_connections` は列単位で SELECT を与えている（`token_hash`・`vault_secret_id` を読ませない）。supabase-js では `.select()` や `.select('*')` を使わず、**必要な列を列挙する**（`*` は権限エラーになる）
 - `service_role` で書き込むときは、操作した利用者の ID を `x-road8-actor` ヘッダーで渡す（監査ログの操作者になる。利用者の JWT では無視される）
