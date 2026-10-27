@@ -250,7 +250,9 @@ road8 は個人利用で、実際に他人を招待する予定はない。そ�
 
 `accept_invitation` は `SECURITY DEFINER` にしない（呼び出し元の `service_role` の権限で動く）。実行権限は `service_role` だけに与え、`anon`・`authenticated` からは呼べない。
 
-`service_role` のクライアント（`createServiceClient()`）は `server-only` のモジュールに置き、`x-road8-actor` ヘッダーに本人の ID を入れる（監査ログの操作者になる）。使うのは §3-4 の一覧の箇所だけ。CLAUDE.md の「secret キーのクライアントでデータを読み書きしない」は、この専用クライアント以外に適用する形に書き直す。
+`service_role` のクライアントは `server-only` のモジュール（`src/lib/supabase/service.ts`）に閉じ込め、外には用途ごとの関数（`acceptInvitation()`）だけを公開する。`x-road8-actor` ヘッダーに本人の ID を入れる（監査ログの操作者になる）。
+
+`/invite` は未ログインでもログイン画面に転送しない。転送するとフラグメント（トークン）が失われるため、「ログインしてからリンクを開き直す」案内を出す。
 
 ### 9-4. メンバー一覧とロールの変更
 

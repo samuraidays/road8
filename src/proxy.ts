@@ -40,6 +40,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // セッションを使うのはログイン後のページ（/app 配下）と、そこでの Server Action だけ。公開ページでは Auth を呼ばない
-  matcher: ["/app/:path*"],
+  // セッションを使うのはログイン後のページ（/app 配下）、招待の受け取り（/invite）と、そこでの Server Action だけ。公開ページでは Auth を呼ばない
+  matcher: ["/app/:path*", "/invite"],
 };
