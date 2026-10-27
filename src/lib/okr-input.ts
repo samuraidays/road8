@@ -1,5 +1,6 @@
 import "server-only";
 import { isUuid } from "@/lib/tenants";
+import { japanDateTime } from "@/lib/period";
 import { codePointLength as length } from "@/lib/text";
 
 // OKR のフォーム入力の検証。上限は DB の check と同じく、コードポイントで数える
@@ -27,6 +28,13 @@ export type KeyResultInput =
   | { kind: "metric"; title: string; progress: number; start_value: number; target_value: number; unit: string };
 
 export type MeasurementInput = { measured_on: string; value: number };
+export type TaskInput = {
+  title: string;
+  due_date: string | null;
+  scheduled_start: string | null;
+  scheduled_end: string | null;
+  assignee_user_id: string | null;
+};
 export type HabitInput = { title: string; times_per_week: number };
 
 export function text(formData: FormData, name: string): string {
@@ -171,4 +179,49 @@ export function parseHabit(formData: FormData): Parsed<HabitInput> {
     return { ok: false, error: "週の回数は1〜7で選んでください" };
   }
   return { ok: true, value: { title: title.value, times_per_week: Number(times) } };
+}
+
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// タスク。時間帯は「日付・開始・終了」をそろえて入れる（日をまたぐ時間帯は扱わない）。担当者がテナントのメンバーかは DB の複合外部キーが確かめる
+export function parseTask(formData: FormData): Parsed<TaskInput> {
+  const title = parseTitle(formData);
+  if (!title.ok) {
+    return title;
+  }
+  const dueText = text(formData, "dueDate");
+  const due = dueText === "" ? null : parseDate(dueText);
+  if (due && !due.ok) {
+    return due;
+  }
+  const assignee = parseOptionalId(formData, "assigneeUserId", "担当者");
+  if (!assignee.ok) {
+    return assignee;
+  }
+
+  const date = text(formData, "scheduleDate");
+  const start = text(formData, "startTime");
+  const end = text(formData, "endTime");
+  let scheduled: { start: string; end: string } | null = null;
+  if (date !== "" || start !== "" || end !== "") {
+    const day = parseDate(date);
+    if (!day.ok || !TIME_PATTERN.test(start) || !TIME_PATTERN.test(end)) {
+      return { ok: false, error: "やる日時は、日付・開始・終了をそろえて入力してください" };
+    }
+    if (end <= start) {
+      return { ok: false, error: "終了は開始より後の時刻にしてください" };
+    }
+    scheduled = { start: japanDateTime(day.value, start), end: japanDateTime(day.value, end) };
+  }
+
+  return {
+    ok: true,
+    value: {
+      title: title.value,
+      due_date: due ? due.value : null,
+      scheduled_start: scheduled?.start ?? null,
+      scheduled_end: scheduled?.end ?? null,
+      assignee_user_id: assignee.value,
+    },
+  };
 }

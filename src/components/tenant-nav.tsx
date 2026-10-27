@@ -4,15 +4,15 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-// まだ作っていない画面は「準備中」として表示だけする
-const ITEMS = [
+// まだ作っていない画面は path を null にして、「準備中」として表示だけする
+const ITEMS: { label: string; path: string | null }[] = [
   { label: "ホーム", path: "" },
   { label: "ゴール", path: "/goals" },
   { label: "OKR", path: "/okr" },
+  { label: "タスク", path: "/tasks" },
   { label: "振り返り", path: "/reviews/weekly" },
-  { label: "タスク", path: null },
   { label: "メンバー", path: "/members" },
-] as const;
+];
 
 export function TenantNav() {
   const { tenantId } = useParams<{ tenantId: string }>();

@@ -11,3 +11,12 @@ export function siteUrl(): string {
 export function supabaseSecretKey(): string | undefined {
   return process.env.SUPABASE_SECRET_KEY || undefined;
 }
+
+// Google の OAuth クライアント（カレンダー連携。設計書 §6）。シークレットはサーバーだけで使う
+export function googleOAuthConfig(): { clientId: string; clientSecret: string; redirectUri: string } {
+  return {
+    clientId: required("GOOGLE_CLIENT_ID", process.env.GOOGLE_CLIENT_ID),
+    clientSecret: required("GOOGLE_CLIENT_SECRET", process.env.GOOGLE_CLIENT_SECRET),
+    redirectUri: `${siteUrl()}/app/google/callback`,
+  };
+}

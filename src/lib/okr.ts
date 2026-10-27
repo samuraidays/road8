@@ -1,6 +1,7 @@
 import "server-only";
 import { currentWeekDates } from "@/lib/period";
 import { createClient } from "@/lib/supabase/server";
+import { compareTasks, TASK_COLUMNS, toTask, type Task, type TaskRow } from "@/lib/tasks";
 import type { TenantContext } from "@/lib/tenants";
 
 export type Measurement = { measuredOn: string; value: number };
@@ -25,6 +26,7 @@ export type KeyResult = {
   unit: string;
   measurements: Measurement[];
   habits: Habit[];
+  tasks: Task[];
   score: number | null;
   nextAction: NextAction | null;
 };
@@ -56,6 +58,7 @@ type KeyResultRow = {
   created_at: string;
   kr_measurements: { measured_on: string; value: string | number }[];
   habits: { id: string; title: string; times_per_week: number; archived_at: string | null; created_at: string; habit_checks: { done_on: string }[] }[];
+  tasks: TaskRow[];
 };
 
 type ObjectiveRow = {
@@ -105,6 +108,7 @@ function toKeyResult(row: KeyResultRow, weekDates: string[]): KeyResult {
     score: toNumber(row.score),
     nextAction: row.next_action,
     measurements,
+    tasks: row.tasks.map(toTask).sort(compareTasks),
     habits: [...row.habits]
       .filter((h) => h.archived_at === null)
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -136,7 +140,8 @@ export async function listObjectives(
         "id, title, description, pillar_id, owner_user_id, year, quarter, " +
           "key_results(id, title, kind, progress, start_value, target_value, unit, score, next_action, created_at, " +
           "kr_measurements(measured_on, value), " +
-          "habits(id, title, times_per_week, archived_at, created_at, habit_checks(done_on)))",
+          "habits(id, title, times_per_week, archived_at, created_at, habit_checks(done_on)), " +
+          `tasks(${TASK_COLUMNS}))`,
       )
       .eq("tenant_id", tenant.id)
       .eq("year", year)
