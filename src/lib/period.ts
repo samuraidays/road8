@@ -51,3 +51,35 @@ export function formatWeek(monday: string): string {
   const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
   return `${md(monday)}〜${md(end)}`;
 }
+
+// 日本時間の日付と時刻（HH:MM）から、タイムゾーンつきの日時（ISO 8601）を作る
+export function japanDateTime(date: string, time: string): string {
+  return `${date}T${time}:00+09:00`;
+}
+
+const JAPAN_PARTS = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: TIME_ZONE,
+  month: "numeric",
+  day: "numeric",
+  weekday: "short",
+  hour: "numeric",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+function japanParts(iso: string): Record<string, string> {
+  return Object.fromEntries(JAPAN_PARTS.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+}
+
+// 「10/28(水) 7:00〜8:00」（日本時間）
+export function formatSchedule(start: string, end: string): string {
+  const s = japanParts(start);
+  const e = japanParts(end);
+  return `${s.month}/${s.day}(${s.weekday}) ${s.hour}:${s.minute}〜${e.hour}:${e.minute}`;
+}
+
+// 日本時間の日付（YYYY-MM-DD）と時刻（HH:MM）に分ける。フォームの初期値に使う
+export function splitJapanDateTime(iso: string): { date: string; time: string } {
+  const p = japanParts(iso);
+  return { date: todayInJapan(new Date(iso)), time: `${p.hour.padStart(2, "0")}:${p.minute}` };
+}

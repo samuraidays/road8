@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon, RepeatIcon } from "lucide-react";
 import { MetricChart } from "@/components/metric-chart";
+import { TaskForm } from "@/components/task-forms";
+import { TaskItem } from "@/components/task-list";
 import {
   DeleteButton,
   HabitForm,
@@ -19,6 +21,7 @@ import { listObjectives, summarizeQuarters, type KeyResult, type Objective } fro
 import { parseYearQuarter } from "@/lib/okr-input";
 import { currentYearQuarter, quarterMonths, todayInJapan } from "@/lib/period";
 import { requireTenant } from "@/lib/tenants";
+import { createTask } from "../tasks/actions";
 import { cn } from "@/lib/utils";
 import {
   createHabit,
@@ -184,7 +187,7 @@ function ObjectiveCard({
 
         <ul className="flex flex-col gap-5">
           {o.keyResults.map((kr) => (
-            <KeyResultItem key={kr.id} tenantId={tenantId} keyResult={kr} today={today} />
+            <KeyResultItem key={kr.id} tenantId={tenantId} keyResult={kr} today={today} members={members} />
           ))}
         </ul>
 
@@ -222,7 +225,17 @@ function formatValue(value: number | null, unit: string): string {
   return value === null ? "" : `${value}${unit}`;
 }
 
-function KeyResultItem({ tenantId, keyResult: kr, today }: { tenantId: string; keyResult: KeyResult; today: string }) {
+function KeyResultItem({
+  tenantId,
+  keyResult: kr,
+  today,
+  members,
+}: {
+  tenantId: string;
+  keyResult: KeyResult;
+  today: string;
+  members: Option[];
+}) {
   const latest = kr.measurements.at(-1);
   const summary =
     kr.kind === "metric"
@@ -267,9 +280,18 @@ function KeyResultItem({ tenantId, keyResult: kr, today }: { tenantId: string; k
         })}
       </ul>
 
+      {kr.tasks.length > 0 ? (
+        <ul className="flex flex-col gap-2 pl-3">
+          {kr.tasks.map((t) => (
+            <TaskItem key={t.id} tenantId={tenantId} task={t} members={members} />
+          ))}
+        </ul>
+      ) : null}
+
       <details className="text-sm">
-        <summary className="cursor-pointer text-muted-foreground">習慣を追加・Key Result を編集</summary>
+        <summary className="cursor-pointer text-muted-foreground">タスク・習慣を追加、Key Result を編集</summary>
         <div className="mt-2 flex flex-col gap-3">
+          <TaskForm action={createTask.bind(null, tenantId, kr.id)} members={members} submitLabel="タスクを追加" idPrefix={`new-task-${kr.id}`} />
           <HabitForm action={createHabit.bind(null, tenantId, kr.id)} idPrefix={`habit-${kr.id}`} />
           {kr.habits.map((h) => (
             <DeleteButton
