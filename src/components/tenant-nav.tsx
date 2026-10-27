@@ -9,7 +9,7 @@ const ITEMS = [
   { label: "ホーム", path: "" },
   { label: "OKR", path: null },
   { label: "タスク", path: null },
-  { label: "メンバー", path: null },
+  { label: "メンバー", path: "/members" },
 ] as const;
 
 export function TenantNav() {
