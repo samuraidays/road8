@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
+import { logDbError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
+import { codePointLength } from "@/lib/text";
 
 export type CreateTenantState = { name?: string; error?: string };
 
@@ -24,7 +26,7 @@ export async function createTenant(_prev: CreateTenantState, formData: FormData)
   const user = await requireUser();
 
   const name = String(formData.get("name") ?? "").trim();
-  const length = [...name].length;
+  const length = codePointLength(name);
   if (length < 1 || length > TENANT_NAME_MAX) {
     return { name, error: `テナント名は1〜${TENANT_NAME_MAX}文字で入力してください` };
   }
@@ -37,7 +39,7 @@ export async function createTenant(_prev: CreateTenantState, formData: FormData)
   const { error } = await supabase.from("tenants").insert({ id, name, created_by: user.id });
   if (error) {
     // 利用者には詳細を返さず、原因の調査用にサーバーのログへ残す（入力値・トークンは含めない）
-    console.error("tenant.create failed", { userId: user.id, code: error.code, message: error.message });
+    logDbError("tenant.create", { userId: user.id }, error);
     return { name, error: "テナントを作成できませんでした。時間をおいて試してください" };
   }
 

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { DeleteButton, KeyResultForm, ObjectiveForm, type MemberOption } from "@/components/okr-forms";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { listMembers } from "@/lib/members";
+import { listMembers, memberLabel } from "@/lib/members";
 import { listObjectives, type Objective } from "@/lib/okr";
 import { requireTenant } from "@/lib/tenants";
 import {
@@ -27,7 +27,7 @@ async function Okr({ params }: Pick<PageProps<"/app/[tenantId]/okr">, "params">)
   const [objectives, members] = await Promise.all([listObjectives(context), listMembers(context)]);
   const memberOptions: MemberOption[] = members.map((m) => ({
     userId: m.userId,
-    label: m.displayName || "名前未設定",
+    label: memberLabel(m, members),
   }));
   const isOwner = context.tenant.role === "owner";
 

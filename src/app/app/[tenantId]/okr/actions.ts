@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { logDbError } from "@/lib/log";
 import { parseKeyResult, parseObjective } from "@/lib/okr-input";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid, requireTenant } from "@/lib/tenants";
@@ -9,10 +10,8 @@ export type OkrFormState = { error?: string };
 
 // tenantId と各 ID は bind でフォームから届くので信用しない。requireTenant() で所属を確かめ、
 // 更新・削除は tenant_id でも絞る（RLS と複合外部キーでも止まる）
-type DbError = { code: string; message: string };
-
-function failed(action: string, userId: string, tenantId: string, error: DbError): OkrFormState {
-  console.error(`${action} failed`, { userId, tenantId, code: error.code, message: error.message });
+function failed(action: string, userId: string, tenantId: string, error: { code: string; message: string }): OkrFormState {
+  logDbError(action, { userId, tenantId }, error);
   return { error: "保存できませんでした。時間をおいて試してください" };
 }
 

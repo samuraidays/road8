@@ -1,10 +1,12 @@
 import "server-only";
 import { isUuid } from "@/lib/tenants";
+import { codePointLength as length } from "@/lib/text";
 
 // OKR のフォーム入力の検証。上限は DB の check と同じく、コードポイントで数える
 const TITLE_MAX = 200;
 const DESCRIPTION_MAX = 2000;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const PROGRESS_PATTERN = /^\d{1,3}$/;
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -23,10 +25,6 @@ export type KeyResultInput = {
 
 function text(formData: FormData, name: string): string {
   return String(formData.get(name) ?? "").trim();
-}
-
-function length(value: string): number {
-  return [...value].length;
 }
 
 function parseTitle(formData: FormData): Parsed<string> {
@@ -91,8 +89,9 @@ export function parseKeyResult(formData: FormData): Parsed<KeyResultInput> {
   if (!title.ok) {
     return title;
   }
+  // 0〜100 の10進の整数だけを受け付ける（Number() だと 1e2 や 0x32 も通るため、先に形を確かめる）
   const raw = text(formData, "progress");
-  const progress = raw === "" ? 0 : Number(raw);
+  const progress = raw === "" ? 0 : PROGRESS_PATTERN.test(raw) ? Number(raw) : NaN;
   if (!Number.isInteger(progress) || progress < 0 || progress > 100) {
     return { ok: false, error: "進捗は0〜100の整数で入力してください" };
   }
