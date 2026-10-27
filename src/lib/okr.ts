@@ -25,7 +25,11 @@ export type KeyResult = {
   unit: string;
   measurements: Measurement[];
   habits: Habit[];
+  score: number | null;
+  nextAction: NextAction | null;
 };
+
+export type NextAction = "continue" | "stop" | "change";
 
 export type Objective = {
   id: string;
@@ -47,6 +51,8 @@ type KeyResultRow = {
   start_value: string | number | null;
   target_value: string | number | null;
   unit: string;
+  score: string | number | null;
+  next_action: NextAction | null;
   created_at: string;
   kr_measurements: { measured_on: string; value: string | number }[];
   habits: { id: string; title: string; times_per_week: number; archived_at: string | null; created_at: string; habit_checks: { done_on: string }[] }[];
@@ -96,6 +102,8 @@ function toKeyResult(row: KeyResultRow, weekDates: string[]): KeyResult {
     startValue,
     targetValue,
     unit: row.unit,
+    score: toNumber(row.score),
+    nextAction: row.next_action,
     measurements,
     habits: [...row.habits]
       .filter((h) => h.archived_at === null)
@@ -126,7 +134,7 @@ export async function listObjectives(
       .from("objectives")
       .select(
         "id, title, description, pillar_id, owner_user_id, year, quarter, " +
-          "key_results(id, title, kind, progress, start_value, target_value, unit, created_at, " +
+          "key_results(id, title, kind, progress, start_value, target_value, unit, score, next_action, created_at, " +
           "kr_measurements(measured_on, value), " +
           "habits(id, title, times_per_week, archived_at, created_at, habit_checks(done_on)))",
       )
@@ -164,17 +172,28 @@ export async function listObjectives(
   }));
 }
 
-// 年の中の四半期ごとの Objective の数（四半期の切り替えに出す）
-export async function countObjectivesByQuarter({ tenant }: TenantContext, year: number): Promise<number[]> {
+export type QuarterSummary = { count: number; score: number | null };
+
+// 年の中の四半期ごとの Objective の数と、採点した KR の平均（四半期の切り替えに出す）
+export async function summarizeQuarters({ tenant }: TenantContext, year: number): Promise<QuarterSummary[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("objectives")
-    .select("quarter")
+    .select("quarter, key_results(score)")
     .eq("tenant_id", tenant.id)
     .eq("year", year)
-    .returns<{ quarter: number }[]>();
+    .returns<{ quarter: number; key_results: { score: string | number | null }[] }[]>();
   if (error) {
     throw new Error("OKR を取得できませんでした");
   }
-  return [1, 2, 3, 4].map((q) => data.filter((o) => o.quarter === q).length);
+  return [1, 2, 3, 4].map((q) => {
+    const objectives = data.filter((o) => o.quarter === q);
+    const scores = objectives
+      .flatMap((o) => o.key_results.map((kr) => toNumber(kr.score)))
+      .filter((s): s is number => s !== null);
+    return {
+      count: objectives.length,
+      score: scores.length === 0 ? null : Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10,
+    };
+  });
 }

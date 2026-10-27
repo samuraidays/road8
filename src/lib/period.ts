@@ -20,14 +20,34 @@ export function quarterMonths(quarter: number): string {
   return `${first}月〜${first + 2}月`;
 }
 
-function addDays(date: string, days: number): string {
+export function addDays(date: string, days: number): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+// その日を含む週の月曜日
+export function mondayOf(date: string): string {
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay(); // 0 = 日曜
+  return addDays(date, weekday === 0 ? -6 : 1 - weekday);
+}
+
+// 月曜日から7日分の日付
+export function weekDatesFrom(monday: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
 }
 
 // 今週（月曜はじまり）の7日分の日付
 export function currentWeekDates(now: Date = new Date()): string[] {
-  const today = todayInJapan(now);
-  const weekday = new Date(`${today}T00:00:00Z`).getUTCDay(); // 0 = 日曜
-  const monday = addDays(today, weekday === 0 ? -6 : 1 - weekday);
-  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  return weekDatesFrom(mondayOf(todayInJapan(now)));
+}
+
+// 次の四半期（Q4 の次は翌年の Q1）
+export function nextQuarter({ year, quarter }: YearQuarter): YearQuarter {
+  return quarter === 4 ? { year: year + 1, quarter: 1 } : { year, quarter: quarter + 1 };
+}
+
+// 「10/26〜11/1」
+export function formatWeek(monday: string): string {
+  const end = addDays(monday, 6);
+  const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  return `${md(monday)}〜${md(end)}`;
 }
