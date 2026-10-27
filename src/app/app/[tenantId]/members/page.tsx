@@ -20,6 +20,8 @@ async function Members({ params }: Pick<PageProps<"/app/[tenantId]/members">, "p
   const members = await listMembers(context);
   const isOwner = context.tenant.role === "owner";
   const me = members.find((m) => m.isMe);
+  // だれかのロールが変わったら全行のフォームを作り直す（選択欄を DB の値に戻し、ほかの行の古いエラーも消す）
+  const rolesKey = members.map((m) => `${m.userId}:${m.role}`).join(",");
 
   return (
     <div className="flex flex-col gap-6">
@@ -33,9 +35,8 @@ async function Members({ params }: Pick<PageProps<"/app/[tenantId]/members">, "p
               {m.isMe ? <span className="ml-2 text-xs text-muted-foreground">（あなた）</span> : null}
             </span>
             {isOwner ? (
-              // ロールが変わったら作り直し、選択欄を DB の値に戻す
               <RoleForm
-                key={m.role}
+                key={rolesKey}
                 action={changeRole.bind(null, context.tenant.id)}
                 userId={m.userId}
                 role={m.role}

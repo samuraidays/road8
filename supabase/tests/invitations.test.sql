@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(16);
+select plan(19);
 
 insert into auth.users (id, email) values
   ('44444444-4444-4444-4444-444444444444', 'olivia@example.test'),
@@ -143,6 +143,30 @@ select is(
     where action = 'memberships.insert' and target_id = '55555555-5555-5555-5555-555555555555'),
   '55555555-5555-5555-5555-555555555555'::uuid,
   '受諾による所属の作成は、受諾した本人を操作者として監査ログに残る'
+);
+
+-- mia は Member になったので、招待を発行できない（Owner だけ）
+select pg_temp.login('55555555-5555-5555-5555-555555555555');
+select throws_ok(
+  $$ insert into public.invitations (tenant_id, role, token_hash) values ('cccccccc-0000-0000-0000-000000000000', 'owner', 'hash-by-mia') $$,
+  '42501', null,
+  'invitation.create: Member は招待を発行できない（Data API 直接でも）'
+);
+
+-- Owner ロールの招待で参加すると Owner になる
+select pg_temp.login('44444444-4444-4444-4444-444444444444');
+insert into public.invitations (tenant_id, role, token_hash) values ('cccccccc-0000-0000-0000-000000000000', 'owner', 'hash-owner');
+select pg_temp.as_service('66666666-6666-6666-6666-666666666666');
+select lives_ok(
+  $$ select public.accept_invitation('hash-owner', '66666666-6666-6666-6666-666666666666') $$,
+  'Owner ロールの招待で参加できる'
+);
+select pg_temp.logout();
+select is(
+  (select role::text from public.memberships
+    where tenant_id = 'cccccccc-0000-0000-0000-000000000000' and user_id = '66666666-6666-6666-6666-666666666666'),
+  'owner',
+  'Owner ロールの招待では Owner として所属が作られる'
 );
 
 select * from finish();

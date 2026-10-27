@@ -10,12 +10,16 @@ function subscribe(onChange: () => void) {
   return () => window.removeEventListener("hashchange", onChange);
 }
 const readToken = () => window.location.hash.slice(1);
-const noToken = () => "";
+// サーバーではフラグメントが分からないので「未確定」として扱い、ブラウザで読むまで何も判定しない
+const unknownToken = () => null;
 
 export function AcceptInvitationForm() {
-  const token = useSyncExternalStore(subscribe, readToken, noToken);
+  const token = useSyncExternalStore<string | null>(subscribe, readToken, unknownToken);
   const [state, formAction, pending] = useActionState<AcceptState, FormData>(acceptInvitationAction, {});
 
+  if (token === null) {
+    return <p className="text-sm text-muted-foreground">読み込み中…</p>;
+  }
   if (!token) {
     return <p className="text-sm text-muted-foreground">招待リンクが正しくありません。受け取ったリンクをそのまま開いてください。</p>;
   }
