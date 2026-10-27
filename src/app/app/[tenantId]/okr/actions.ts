@@ -158,6 +158,15 @@ export async function saveReason(
     ({ error } = await supabase
       .from("reasons")
       .insert({ tenant_id: tenant.id, user_id: user.id, [column]: targetId, body }));
+    // 23505：同時に送った保存（連打など）が先に作った。そちらを更新する
+    if (error?.code === "23505") {
+      ({ error } = await supabase
+        .from("reasons")
+        .update({ body })
+        .eq("tenant_id", tenant.id)
+        .eq("user_id", user.id)
+        .eq(column, targetId));
+    }
   }
   if (error) {
     // 23503：柱か Objective がこのテナントにない（複合外部キー）
@@ -276,23 +285,29 @@ export async function recordMeasurement(
   }
 
   const supabase = await createClient();
-  const updated = await supabase
-    .from("kr_measurements")
-    .update({ value: parsed.value.value })
-    .eq("tenant_id", tenant.id)
-    .eq("key_result_id", keyResultId)
-    .eq("measured_on", parsed.value.measured_on)
-    .select("id");
+  const update = () =>
+    supabase
+      .from("kr_measurements")
+      .update({ value: parsed.value.value })
+      .eq("tenant_id", tenant.id)
+      .eq("key_result_id", keyResultId)
+      .eq("measured_on", parsed.value.measured_on)
+      .select("id");
+  const updated = await update();
   if (updated.error) {
     return failed("kr_measurement.write", user.id, tenant.id, updated.error);
   }
   if (updated.data.length === 0) {
-    const { error } = await supabase.from("kr_measurements").insert({
+    let { error } = await supabase.from("kr_measurements").insert({
       tenant_id: tenant.id,
       key_result_id: keyResultId,
       created_by: user.id,
       ...parsed.value,
     });
+    // 23505：同じ日の記録を同時に送った（連打など）。先にできた記録を更新する
+    if (error?.code === "23505") {
+      ({ error } = await update());
+    }
     if (error) {
       if (error.code === "23503") {
         return NOT_FOUND.keyResult;
