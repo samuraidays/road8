@@ -5,6 +5,7 @@ import {
   accessTokenFrom,
   CalendarNotFoundError,
   createCalendar,
+  deleteEvent,
   GoogleAuthError,
   insertEvent,
   updateEvent,
@@ -88,7 +89,8 @@ export async function updateTask(
     .update(parsed.value)
     .eq("tenant_id", context.tenant.id)
     .eq("id", taskId)
-    .select("id");
+    .select("calendar_event_id")
+    .returns<{ calendar_event_id: string | null }[]>();
   if (error) {
     if (error.code === "23503") {
       return { error: "担当者は、このテナントのメンバーから選んでください" };
@@ -97,6 +99,14 @@ export async function updateTask(
   }
   if (data.length === 0) {
     return NOT_FOUND;
+  }
+  // カレンダーに入れたタスクなら、予定も合わせる（やる日時を消したら予定も消す）
+  if (data[0].calendar_event_id) {
+    const synced = parsed.value.scheduled_start
+      ? await addTaskToCalendar(tenantId, taskId)
+      : await removeFromCalendar(context, taskId, data[0].calendar_event_id);
+    revalidate(context.tenant.id);
+    return synced.error ? { error: `保存しました。ただし ${synced.error}` } : {};
   }
   revalidate(context.tenant.id);
   return {};
@@ -137,14 +147,42 @@ export async function deleteTask(tenantId: string, taskId: string): Promise<Task
     .delete()
     .eq("tenant_id", context.tenant.id)
     .eq("id", taskId)
-    .select("id");
+    .select("calendar_event_id")
+    .returns<{ calendar_event_id: string | null }[]>();
   if (error) {
     return failed("task.delete", context, error);
   }
   if (data.length === 0) {
     return NOT_FOUND;
   }
+  // カレンダーに入れたタスクなら、予定も消す（タスクの削除は済んでいるので、失敗しても削除は取り消さない）
+  if (data[0].calendar_event_id) {
+    await removeFromCalendar(context, null, data[0].calendar_event_id);
+  }
   revalidate(context.tenant.id);
+  return {};
+}
+
+// 予定を消し、タスクが残っていれば予定 ID を空にする。連携していなければ何もしない
+async function removeFromCalendar(context: TenantContext, taskId: string | null, eventId: string): Promise<TaskFormState> {
+  try {
+    const connection = await getGoogleConnection(context.user.id);
+    if (!connection?.calendarId) {
+      return {};
+    }
+    await deleteEvent(await accessTokenFrom(connection.refreshToken), connection.calendarId, eventId);
+  } catch (e) {
+    console.error("task.remove_from_calendar failed", {
+      userId: context.user.id,
+      tenantId: context.tenant.id,
+      reason: e instanceof Error ? e.message : "unknown",
+    });
+    return { error: "カレンダーの予定を消せませんでした" };
+  }
+  if (taskId) {
+    const supabase = await createClient();
+    await supabase.from("tasks").update({ calendar_event_id: null }).eq("tenant_id", context.tenant.id).eq("id", taskId);
+  }
   return {};
 }
 

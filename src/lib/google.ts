@@ -154,3 +154,15 @@ export async function updateEvent(accessToken: string, calendarId: string, event
   );
   return updated.id;
 }
+
+// 予定を消す。すでに消されていれば何もしない
+export async function deleteEvent(accessToken: string, calendarId: string, eventId: string): Promise<void> {
+  const res = await fetch(`${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    throw new Error(`calendar api DELETE ${res.status}`);
+  }
+}
