@@ -1,13 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  accessTokenFrom,
+  CalendarNotFoundError,
+  createCalendar,
+  GoogleAuthError,
+  insertEvent,
+  updateEvent,
+  type CalendarEvent,
+} from "@/lib/google";
 import { logDbError } from "@/lib/log";
 import { parseTask } from "@/lib/okr-input";
 import { createClient } from "@/lib/supabase/server";
+import { getGoogleConnection, setGoogleCalendarId } from "@/lib/supabase/service";
 import type { TaskStatus } from "@/lib/tasks";
 import { isUuid, requireTenant, type TenantContext } from "@/lib/tenants";
 
-export type TaskFormState = { error?: string };
+export type TaskFormState = { error?: string; message?: string };
 
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
 const NOT_FOUND = { error: "タスクが見つかりません" };
@@ -136,4 +146,112 @@ export async function deleteTask(tenantId: string, taskId: string): Promise<Task
   }
   revalidate(context.tenant.id);
   return {};
+}
+
+// ---- Google カレンダーに入れる（task.add_to_calendar。設計書 §6）----
+
+type CalendarTaskRow = {
+  title: string;
+  scheduled_start: string | null;
+  scheduled_end: string | null;
+  calendar_event_id: string | null;
+  key_results: { title: string } | null;
+};
+
+// 予定を作る（すでに入れたタスクなら更新する）。カレンダーや予定が利用者に消されていたら作り直す
+async function upsertEvent(
+  userId: string,
+  accessToken: string,
+  calendarId: string | null,
+  eventId: string | null,
+  event: CalendarEvent,
+): Promise<string> {
+  let calendar = calendarId;
+  if (!calendar) {
+    calendar = await createCalendar(accessToken);
+    await setGoogleCalendarId(userId, calendar);
+  }
+  if (eventId) {
+    try {
+      return await updateEvent(accessToken, calendar, eventId, event);
+    } catch (error) {
+      if (!(error instanceof CalendarNotFoundError)) {
+        throw error;
+      }
+    }
+  }
+  try {
+    return await insertEvent(accessToken, calendar, event);
+  } catch (error) {
+    if (!(error instanceof CalendarNotFoundError)) {
+      throw error;
+    }
+    // road8 のカレンダー自体が消されていた
+    const recreated = await createCalendar(accessToken);
+    await setGoogleCalendarId(userId, recreated);
+    return insertEvent(accessToken, recreated, event);
+  }
+}
+
+export async function addTaskToCalendar(tenantId: string, taskId: string): Promise<TaskFormState> {
+  const context = await requireTenant(tenantId);
+  if (!isUuid(taskId)) {
+    return NOT_FOUND;
+  }
+
+  // タスクは利用者の JWT で読む（自分が見られるタスクだけ。RLS）
+  const supabase = await createClient();
+  const { data: task, error } = await supabase
+    .from("tasks")
+    .select("title, scheduled_start, scheduled_end, calendar_event_id, key_results(title)")
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", taskId)
+    .returns<CalendarTaskRow[]>()
+    .maybeSingle();
+  if (error) {
+    return failed("task.add_to_calendar", context, error);
+  }
+  if (!task) {
+    return NOT_FOUND;
+  }
+  if (!task.scheduled_start || !task.scheduled_end) {
+    return { error: "先に「やる日時」を入れてください" };
+  }
+
+  let eventId: string;
+  try {
+    const connection = await getGoogleConnection(context.user.id);
+    if (!connection) {
+      return { error: "Google カレンダーと連携してください" };
+    }
+    const accessToken = await accessTokenFrom(connection.refreshToken);
+    eventId = await upsertEvent(context.user.id, accessToken, connection.calendarId, task.calendar_event_id, {
+      summary: task.title,
+      description: task.key_results ? `road8：${task.key_results.title}` : "road8",
+      start: task.scheduled_start,
+      end: task.scheduled_end,
+    });
+  } catch (e) {
+    // トークンや予定の中身はログに出さない
+    console.error("task.add_to_calendar failed", {
+      userId: context.user.id,
+      tenantId: context.tenant.id,
+      reason: e instanceof Error ? e.message : "unknown",
+    });
+    if (e instanceof GoogleAuthError) {
+      return { error: "Google カレンダーとの連携が切れています。連携し直してください" };
+    }
+    return { error: "カレンダーに入れられませんでした。時間をおいて試してください" };
+  }
+
+  const saved = await supabase
+    .from("tasks")
+    .update({ calendar_event_id: eventId })
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", taskId);
+  if (saved.error) {
+    return failed("task.add_to_calendar", context, saved.error);
+  }
+  revalidate(context.tenant.id);
+  return { message: task.calendar_event_id ? "予定を更新しました" : "カレンダーに入れました" };
 }

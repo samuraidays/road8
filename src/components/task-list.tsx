@@ -1,5 +1,6 @@
 import { CalendarClockIcon } from "lucide-react";
-import { deleteTask, setTaskStatus, updateTask } from "@/app/app/[tenantId]/tasks/actions";
+import { addTaskToCalendar, deleteTask, setTaskStatus, updateTask } from "@/app/app/[tenantId]/tasks/actions";
+import { CalendarButton } from "@/components/google-forms";
 import { DeleteButton, type Option } from "@/components/okr-forms";
 import { TaskCheckbox, TaskForm } from "@/components/task-forms";
 import { formatSchedule, splitJapanDateTime } from "@/lib/period";
@@ -16,11 +17,13 @@ export function TaskItem({
   task: t,
   members,
   context,
+  googleConnected,
 }: {
   tenantId: string;
   task: Task;
   members: Option[];
   context?: string;
+  googleConnected: boolean;
 }) {
   const done = t.status === "done";
   const assignee = members.find((m) => m.id === t.assigneeUserId);
@@ -40,6 +43,9 @@ export function TaskItem({
         ) : null}
         {t.dueDate ? <span className="text-xs text-muted-foreground">期日 {formatDue(t.dueDate)}</span> : null}
         {assignee ? <span className="text-xs text-muted-foreground">{assignee.label}</span> : null}
+        {googleConnected && t.scheduledStart && !done ? (
+          <CalendarButton add={addTaskToCalendar.bind(null, tenantId, t.id)} added={t.calendarEventId !== null} />
+        ) : null}
       </div>
       {context ? <p className="pl-6 text-xs break-words text-muted-foreground">{context}</p> : null}
       <details className="pl-6">

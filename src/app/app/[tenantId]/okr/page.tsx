@@ -20,6 +20,7 @@ import { listMembers, memberLabel } from "@/lib/members";
 import { listObjectives, summarizeQuarters, type KeyResult, type Objective } from "@/lib/okr";
 import { parseYearQuarter } from "@/lib/okr-input";
 import { currentYearQuarter, quarterMonths, todayInJapan } from "@/lib/period";
+import { getGoogleStatus } from "@/lib/tasks";
 import { requireTenant } from "@/lib/tenants";
 import { createTask } from "../tasks/actions";
 import { cn } from "@/lib/utils";
@@ -59,11 +60,12 @@ async function Okr({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/okr
   const requested = parseYearQuarter(String(query.year ?? ""), String(query.q ?? ""));
   const view: View = requested.ok ? requested.value : current;
 
-  const [objectives, quarters, members, pillars] = await Promise.all([
+  const [objectives, quarters, members, pillars, google] = await Promise.all([
     listObjectives(context, view.year, view.quarter),
     summarizeQuarters(context, view.year),
     listMembers(context),
     listPillarOptions(context),
+    getGoogleStatus(context.user.id),
   ]);
   const memberOptions: Option[] = members.map((m) => ({ id: m.userId, label: memberLabel(m, members) }));
   const pillarOptions: Option[] = pillars.map((p) => ({ id: p.id, label: p.title }));
@@ -120,6 +122,7 @@ async function Okr({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/okr
             members={memberOptions}
             isOwner={isOwner}
             today={today}
+            googleConnected={google.connected}
           />
         ))
       )}
@@ -151,6 +154,7 @@ function ObjectiveCard({
   members,
   isOwner,
   today,
+  googleConnected,
 }: {
   tenantId: string;
   objective: Objective;
@@ -158,6 +162,7 @@ function ObjectiveCard({
   members: Option[];
   isOwner: boolean;
   today: string;
+  googleConnected: boolean;
 }) {
   const owner = members.find((m) => m.id === o.ownerUserId);
   const pillar = pillars.find((p) => p.id === o.pillarId);
@@ -187,7 +192,7 @@ function ObjectiveCard({
 
         <ul className="flex flex-col gap-5">
           {o.keyResults.map((kr) => (
-            <KeyResultItem key={kr.id} tenantId={tenantId} keyResult={kr} today={today} members={members} />
+            <KeyResultItem key={kr.id} tenantId={tenantId} keyResult={kr} today={today} members={members} googleConnected={googleConnected} />
           ))}
         </ul>
 
@@ -230,11 +235,13 @@ function KeyResultItem({
   keyResult: kr,
   today,
   members,
+  googleConnected,
 }: {
   tenantId: string;
   keyResult: KeyResult;
   today: string;
   members: Option[];
+  googleConnected: boolean;
 }) {
   const latest = kr.measurements.at(-1);
   const summary =
@@ -283,7 +290,7 @@ function KeyResultItem({
       {kr.tasks.length > 0 ? (
         <ul className="flex flex-col gap-2 pl-3">
           {kr.tasks.map((t) => (
-            <TaskItem key={t.id} tenantId={tenantId} task={t} members={members} />
+            <TaskItem key={t.id} tenantId={tenantId} task={t} members={members} googleConnected={googleConnected} />
           ))}
         </ul>
       ) : null}

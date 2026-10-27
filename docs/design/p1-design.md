@@ -188,6 +188,18 @@ RLS から呼ぶ所属確認の関数は `private` スキーマに置く。`priv
 - リフレッシュトークンは Vault に保存し、`google_connections` には参照 ID だけを持つ
 - OAuth 同意画面は「テスト」状態のまま運用する（7日でリフレッシュトークンが失効するので、再連携の導線を用意する）
 
+### 6-1. 実装（2026-10-27）
+
+| 項目 | 内容 |
+|---|---|
+| 連携の開始 | `/app/google/connect`（ログイン必須）。`state`（CSRF 対策）と PKCE の `verifier` を作り、HttpOnly・`SameSite=Lax`・`Path=/app/google`・10分の Cookie に入れて Google の同意画面へ送る。`access_type=offline`・`prompt=consent` で毎回リフレッシュトークンを受け取る |
+| 戻り | `/app/google/callback`。Cookie を1回で消し、`state` を定数時間で照合、`verifier` を付けてコードを交換。受け取ったスコープに `calendar.app.created` があることを確かめる。戻り先は「テナントのタスク・OKR の画面」だけ（オープンリダイレクト対策） |
+| トークンの保管 | `service_role` から DB 関数 `save_google_connection`・`get_google_connection`・`delete_google_connection` を呼ぶ（`SECURITY DEFINER` ではない、実行は `service_role` だけ）。本体は Vault、`google_connections` には参照 ID・スコープ・road8 のカレンダー ID |
+| カレンダーに入れる | `task.add_to_calendar`。タスクは利用者の JWT で読む（自分が見られるタスクだけ）。初回に road8 用のカレンダーを作る。入れたことのあるタスクは予定を更新する。カレンダーや予定が消されていたら作り直す。予定 ID は利用者の JWT で `tasks.calendar_event_id` に書く |
+| 解除 | Google 側でトークンを取り消し（失敗しても続ける）、Vault と連携の行を消す。入れた予定は残る |
+| 連携が切れたとき | リフレッシュが `invalid_grant` などで失敗したら「連携し直してください」と出す |
+| 本番に必要な設定 | Vercel の環境変数 `GOOGLE_CLIENT_ID`・`GOOGLE_CLIENT_SECRET`（Sensitive）。Google Cloud の承認済みリダイレクト URI に `https://app.road8.dev/app/google/callback` |
+
 ---
 
 ## 7. P1 の1週目の確認（2026-10-26 実施、ローカル）

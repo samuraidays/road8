@@ -77,3 +77,19 @@ export async function listTasks({ tenant }: TenantContext): Promise<{ open: Task
     done: tasks.filter((t) => t.status === "done").sort(compareTasks),
   };
 }
+
+export type GoogleStatus = { connected: boolean; connectedAt: string | null };
+
+// 本人の Google カレンダー連携の状態（RLS で本人の行だけ。トークンの参照 ID は列単位の grant で読めない）
+export async function getGoogleStatus(userId: string): Promise<GoogleStatus> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("google_connections")
+    .select("connected_at, revoked_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    throw new Error("Google の連携状態を取得できませんでした");
+  }
+  return { connected: data !== null && data.revoked_at === null, connectedAt: data?.connected_at ?? null };
+}

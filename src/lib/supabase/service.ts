@@ -32,3 +32,43 @@ export async function acceptInvitation(tokenHash: string, userId: string): Promi
   }
   return data as string;
 }
+
+// ---- Google カレンダー連携（設計書 §6、§8 #5）。リフレッシュトークンは Vault に置く ----
+// どれも本人の user_id でだけ呼ぶ（呼び出し側で requireUser() 済みであること）
+
+export async function saveGoogleConnection(userId: string, refreshToken: string, scopes: string): Promise<void> {
+  const { error } = await createServiceClient(userId).rpc("save_google_connection", {
+    p_user_id: userId,
+    p_refresh_token: refreshToken,
+    p_scopes: scopes,
+  });
+  if (error) {
+    throw new Error("Google の連携を保存できませんでした");
+  }
+}
+
+export async function getGoogleConnection(userId: string): Promise<{ refreshToken: string; calendarId: string | null } | null> {
+  const { data, error } = await createServiceClient(userId).rpc("get_google_connection", { p_user_id: userId });
+  if (error) {
+    throw new Error("Google の連携を読み出せませんでした");
+  }
+  const row = (data as { refresh_token: string; calendar_id: string | null }[] | null)?.[0];
+  return row ? { refreshToken: row.refresh_token, calendarId: row.calendar_id } : null;
+}
+
+export async function setGoogleCalendarId(userId: string, calendarId: string): Promise<void> {
+  const { error } = await createServiceClient(userId)
+    .from("google_connections")
+    .update({ calendar_id: calendarId })
+    .eq("user_id", userId);
+  if (error) {
+    throw new Error("カレンダーの ID を保存できませんでした");
+  }
+}
+
+export async function deleteGoogleConnection(userId: string): Promise<void> {
+  const { error } = await createServiceClient(userId).rpc("delete_google_connection", { p_user_id: userId });
+  if (error) {
+    throw new Error("Google の連携を解除できませんでした");
+  }
+}
