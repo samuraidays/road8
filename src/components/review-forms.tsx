@@ -78,7 +78,7 @@ export type ScoreRow = {
 
 const SCORES = ["0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0"];
 
-// KR の採点（メンバーに見える）。未採点なら進捗から候補を出す
+// KR の採点（メンバーに見える）。未採点なら進捗から出した候補を表示する（選ぶまで採点は付かない）
 export function ScoreForm({ action, rows }: { action: Action; rows: ScoreRow[] }) {
   const [state, formAction, pending] = useActionState(action, {});
 
@@ -94,7 +94,9 @@ export function ScoreForm({ action, rows }: { action: Action; rows: ScoreRow[] }
                 {r.title}
                 <span className="ml-2 text-xs text-muted-foreground">進捗 {r.progress}%</span>
               </span>
-              <select name={`score:${r.id}`} defaultValue={r.score === null ? suggested : r.score.toFixed(1)} aria-label={`${r.title} の採点`} className={controlClassName}>
+              <select name={`score:${r.id}`} defaultValue={r.score === null ? "" : r.score.toFixed(1)} aria-label={`${r.title} の採点`} className={controlClassName}>
+                {/* 未採点のまま保存しても採点は付かない。進捗から出した候補を見出しに出す */}
+                <option value="">未採点（候補 {suggested}）</option>
                 {SCORES.map((s) => (
                   <option key={s} value={s}>
                     {s}

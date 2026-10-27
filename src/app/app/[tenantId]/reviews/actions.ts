@@ -224,8 +224,11 @@ export async function carryOver(tenantId: string, year: number, quarter: number)
     if (inserted.error) {
       return failed("objective.carry_over", context, inserted.error);
     }
+    // 習慣も引き継ぐため、KR の ID はここで決める
+    const carried = keyResults.map((kr) => ({ source: kr, id: crypto.randomUUID() }));
     const krs = await supabase.from("key_results").insert(
-      keyResults.map((kr) => ({
+      carried.map(({ source: kr, id }) => ({
+        id,
         tenant_id: tenant.id,
         objective_id: objectiveId,
         title: kr.title,
@@ -237,8 +240,21 @@ export async function carryOver(tenantId: string, year: number, quarter: number)
         created_by: user.id,
       })),
     );
-    if (krs.error) {
-      return failed("key_result.carry_over", context, krs.error);
+    const habits = carried.flatMap(({ source, id }) =>
+      source.habits.map((h) => ({
+        tenant_id: tenant.id,
+        key_result_id: id,
+        title: h.title,
+        times_per_week: h.timesPerWeek,
+        created_by: user.id,
+      })),
+    );
+    const habitsInserted = krs.error || habits.length === 0 ? { error: null } : await supabase.from("habits").insert(habits);
+    const error = krs.error ?? habitsInserted.error;
+    if (error) {
+      // 途中で失敗したら、作りかけの Objective を消す（KR・習慣も連鎖して消える）。残すと次の実行で題名が重なり、引き継げなくなる
+      await supabase.from("objectives").delete().eq("tenant_id", tenant.id).eq("id", objectiveId);
+      return failed("objective.carry_over", context, error);
     }
     created += 1;
   }

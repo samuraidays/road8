@@ -6,7 +6,7 @@ import { ReviewTabs } from "@/components/review-tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listObjectives } from "@/lib/okr";
 import { parseYearQuarter } from "@/lib/okr-input";
-import { currentYearQuarter, nextQuarter, quarterMonths, type YearQuarter } from "@/lib/period";
+import { currentYearQuarter, nextQuarter, quarterMonths, todayInJapan, type YearQuarter } from "@/lib/period";
 import { getQuarterlyReview } from "@/lib/reviews";
 import { requireTenant } from "@/lib/tenants";
 import { carryOver, saveQuarterlyReview, saveScores } from "../actions";
@@ -32,7 +32,10 @@ async function QuarterlyReview({ params, searchParams }: Pick<PageProps<"/app/[t
   const context = await requireTenant(tenantId);
   const current = currentYearQuarter();
   const requested = parseYearQuarter(String(query.year ?? ""), String(query.q ?? ""));
-  const view = requested.ok ? requested.value : current;
+  // 指定がなければ今期。ただし四半期の最初の2週間は、終わったばかりの前の四半期を出す（振り返りはその時期に書くため）
+  const [, month, day] = todayInJapan().split("-").map(Number);
+  const justStarted = (month - 1) % 3 === 0 && day <= 14;
+  const view = requested.ok ? requested.value : justStarted ? previousQuarter(current) : current;
   const [objectives, review] = await Promise.all([
     listObjectives(context, view.year, view.quarter),
     getQuarterlyReview(context, view.year, view.quarter),
