@@ -3,6 +3,7 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import { requireUser, type CurrentUser } from "@/lib/auth";
 import type { Role } from "@/lib/roles";
+import { timed } from "@/lib/perf";
 import { createClient } from "@/lib/supabase/server";
 import { codePointLength } from "@/lib/text";
 
@@ -37,14 +38,12 @@ export async function listMyTenants(user: CurrentUser): Promise<TenantSummary[]>
   return listTenantsOf(user.id);
 }
 
-// ヘッダーとページの両方から呼ばれるため、1回のリクエストの中では1度だけ取得する
+// ヘッダー・メニュー・ページ（requireTenant）から呼ばれるため、1回のリクエストの中では1度だけ取得する
 const listTenantsOf = cache(async (userId: string): Promise<TenantSummary[]> => {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("memberships")
-    .select("role, tenants!inner(id, name)")
-    .eq("user_id", userId)
-    .returns<MembershipRow[]>();
+  const { data, error } = await timed("memberships", async () =>
+    supabase.from("memberships").select("role, tenants!inner(id, name)").eq("user_id", userId).returns<MembershipRow[]>(),
+  );
   if (error) {
     throw new Error("テナントの一覧を取得できませんでした");
   }
@@ -61,18 +60,9 @@ export const requireTenant = cache(async (tenantId: string): Promise<TenantConte
     notFound();
   }
   const user = await requireUser();
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("memberships")
-    .select("role, tenants!inner(id, name)")
-    .eq("tenant_id", tenantId)
-    .eq("user_id", user.id)
-    .returns<MembershipRow[]>()
-    .maybeSingle();
-  if (error) {
-    throw new Error("テナントを取得できませんでした");
-  }
-  const tenant = data ? toSummary(data) : null;
+  // 自分の所属の一覧（ヘッダーと共有）から探す。問い合わせを1回にまとめるため。
+  // 一覧は利用者の JWT で、自分の行（user_id = 本人）だけを読んでいる
+  const tenant = (await listTenantsOf(user.id)).find((t) => t.id === tenantId.toLowerCase());
   if (!tenant) {
     notFound();
   }
