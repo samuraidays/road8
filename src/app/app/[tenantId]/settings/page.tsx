@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import Link from "next/link";
+import { PageSkeleton } from "@/components/page-skeleton";
 import { DeleteTenantForm, RenameTenantForm } from "@/components/settings-forms";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireTenant } from "@/lib/tenants";
@@ -6,7 +8,7 @@ import { deleteTenant, renameTenant } from "./actions";
 
 export default function SettingsPage({ params }: PageProps<"/app/[tenantId]/settings">) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <Settings params={params} />
     </Suspense>
   );
@@ -34,6 +36,17 @@ async function Settings({ params }: Pick<PageProps<"/app/[tenantId]/settings">, 
         </CardHeader>
         <CardContent>
           <RenameTenantForm key={tenant.name} action={renameTenant.bind(null, tenant.id)} name={tenant.name} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>監査ログ</CardTitle>
+          <CardDescription>このテナントで、だれが・いつ・何をしたかの記録です。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href={`/app/${tenant.id}/audit`} className="text-sm underline">
+            監査ログを見る
+          </Link>
         </CardContent>
       </Card>
       <Card className="ring-destructive/30">

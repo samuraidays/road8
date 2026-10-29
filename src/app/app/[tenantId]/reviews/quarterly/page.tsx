@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon, LockIcon } from "lucide-react";
 import { CarryOverButton, QuarterlyReviewForm, ScoreForm, type ScoreRow } from "@/components/review-forms";
@@ -13,7 +14,7 @@ import { carryOver, saveQuarterlyReview, saveScores } from "../actions";
 
 export default function QuarterlyReviewPage({ params, searchParams }: PageProps<"/app/[tenantId]/reviews/quarterly">) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <QuarterlyReview params={params} searchParams={searchParams} />
     </Suspense>
   );
