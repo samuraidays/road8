@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon, LockIcon } from "lucide-react";
-import { CarryOverButton, QuarterlyReviewForm, ScoreForm, type ScoreRow } from "@/components/review-forms";
+import { QuarterlyReviewForm, ScoreForm, type ScoreRow } from "@/components/review-forms";
+import { ConfirmButton } from "@/components/ux";
 import { ReviewTabs } from "@/components/review-tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listObjectives } from "@/lib/okr";
@@ -118,7 +119,13 @@ async function QuarterlyReview({ params, searchParams }: Pick<PageProps<"/app/[t
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <CarryOverButton action={carryOver.bind(null, tid, view.year, view.quarter)} label={`${next.year}年 Q${next.quarter} の下書きを作る`} />
+            <ConfirmButton
+              label={`${next.year}年 Q${next.quarter} の下書きを作る`}
+              title="次の四半期の下書きを作りますか？"
+              description="「続ける」「変える」にした Key Result を、次の四半期の Objective として作ります（習慣も引き継ぎます）。同じ題名の Objective があれば作りません。"
+              action={carryOver.bind(null, tid, view.year, view.quarter)}
+              destructive={false}
+            />
           </CardContent>
         </Card>
       ) : null}

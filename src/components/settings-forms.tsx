@@ -9,28 +9,6 @@ import { Label } from "@/components/ui/label";
 
 type Action = (prev: SettingsFormState, formData: FormData) => Promise<SettingsFormState>;
 
-export function RenameTenantForm({ action, name }: { action: Action; name: string }) {
-  const [state, formAction, pending] = useActionState(action, {});
-
-  return (
-    <form action={formAction} className="flex flex-col gap-2">
-      <Label htmlFor="tenant-rename">テナント名</Label>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input id="tenant-rename" name="name" defaultValue={name} required className="max-w-sm" />
-        <Button type="submit" variant="outline" disabled={pending}>
-          保存
-        </Button>
-      </div>
-      {state.message ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {state.message}
-        </p>
-      ) : null}
-      <ErrorMessage error={state.error} />
-    </form>
-  );
-}
-
 export function DeleteTenantForm({ action, name }: { action: Action; name: string }) {
   const [state, formAction, pending] = useActionState(action, {});
 
