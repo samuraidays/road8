@@ -21,6 +21,8 @@ async function Members({ params }: Pick<PageProps<"/app/[tenantId]/members">, "p
   const members = await listMembers(context);
   const isOwner = context.tenant.role === "owner";
   const tid = context.tenant.id;
+  // 最後の Owner は降格できない（DB のトリガーでも止まる）ので、Owner が1人のときは「Member にする」を出さない
+  const ownerCount = members.filter((m) => m.role === "owner").length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,7 +56,7 @@ async function Members({ params }: Pick<PageProps<"/app/[tenantId]/members">, "p
             </div>
             {m.isMe ? <span className="text-xs text-muted-foreground">あなた</span> : null}
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{ROLE_LABEL[m.role]}</span>
-            {isOwner ? (
+            {isOwner && !(m.role === "owner" && ownerCount === 1) ? (
               <RowActions
                 label={`${memberLabel(m, members)} の操作`}
                 items={[
