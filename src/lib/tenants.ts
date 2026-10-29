@@ -41,7 +41,8 @@ export async function listMyTenants(user: CurrentUser): Promise<TenantSummary[]>
 // ヘッダー・メニュー・ページ（requireTenant）から呼ばれるため、1回のリクエストの中では1度だけ取得する
 const listTenantsOf = cache(async (userId: string): Promise<TenantSummary[]> => {
   const supabase = await createClient();
-  const { data, error } = await timed("memberships", () =>
+  // 問い合わせは Promise ではない（then を持つだけ）ので、async で包んで Promise にする（型の推論のため）
+  const { data, error } = await timed("memberships", async () =>
     supabase.from("memberships").select("role, tenants!inner(id, name)").eq("user_id", userId).returns<MembershipRow[]>(),
   );
   if (error) {
