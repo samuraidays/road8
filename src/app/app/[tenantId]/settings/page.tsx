@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { PageSkeleton } from "@/components/page-skeleton";
-import { DeleteTenantForm, RenameTenantForm } from "@/components/settings-forms";
+import { DeleteTenantForm } from "@/components/settings-forms";
+import { InlineText } from "@/components/ux";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireTenant } from "@/lib/tenants";
 import { deleteTenant, renameTenant } from "./actions";
@@ -35,7 +36,15 @@ async function Settings({ params }: Pick<PageProps<"/app/[tenantId]/settings">, 
           <CardTitle>テナント名</CardTitle>
         </CardHeader>
         <CardContent>
-          <RenameTenantForm key={tenant.name} action={renameTenant.bind(null, tenant.id)} name={tenant.name} />
+          <InlineText
+            action={renameTenant.bind(null, tenant.id)}
+            name="name"
+            value={tenant.name}
+            placeholder="テナント名"
+            label="テナント名"
+            multiline={false}
+            className="-mx-2 w-auto text-base"
+          />
         </CardContent>
       </Card>
       <Card>

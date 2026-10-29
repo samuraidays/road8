@@ -1,107 +1,61 @@
 "use client";
 
 import { useActionState } from "react";
-import type {
-  DisplayNameState,
-  InviteState,
-  RoleChangeState,
-} from "@/app/app/[tenantId]/members/actions";
+import { CopyIcon } from "lucide-react";
+import { toast } from "sonner";
+import type { InviteState } from "@/app/app/[tenantId]/members/actions";
+import { controlClassName } from "@/components/okr-forms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ROLE_LABEL, type Role } from "@/lib/roles";
+import { ErrorText } from "@/components/ux";
+import { ROLE_LABEL } from "@/lib/roles";
 
-type Action<S> = (prev: S, formData: FormData) => Promise<S>;
-
-const selectClassName = "h-8 rounded-lg border border-input bg-transparent px-2 text-sm";
-
-function RoleOptions() {
-  return (
-    <>
-      <option value="member">{ROLE_LABEL.member}</option>
-      <option value="owner">{ROLE_LABEL.owner}</option>
-    </>
-  );
-}
-
-export function InviteForm({ action }: { action: Action<InviteState> }) {
+// 招待リンクの発行（ダイアログの中で使う）。リンクは1回だけ表示するので、成功してもダイアログは閉じずにリンクとコピーのボタンを出す
+export function InviteForm({ action }: { action: (prev: InviteState, formData: FormData) => Promise<InviteState> }) {
   const [state, formAction, pending] = useActionState(action, {});
 
-  return (
-    <form action={formAction} className="flex flex-col gap-3">
-      <div className="flex items-end gap-2">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="invite-role">ロール</Label>
-          <select id="invite-role" name="role" defaultValue="member" className={selectClassName}>
-            <RoleOptions />
-          </select>
+  if (state.link) {
+    const link = state.link;
+    return (
+      <div className="flex flex-col gap-3" role="status">
+        <Label htmlFor="invite-link">招待リンク</Label>
+        <div className="flex gap-2">
+          <Input id="invite-link" readOnly value={link} onFocus={(e) => e.currentTarget.select()} />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(link);
+                toast.success("コピーしました");
+              } catch {
+                toast.error("コピーできませんでした。リンクを選んでコピーしてください");
+              }
+            }}
+          >
+            <CopyIcon aria-hidden="true" />
+            コピー
+          </Button>
         </div>
-        <Button type="submit" disabled={pending}>
-          {pending ? "作成中…" : "招待リンクを作る"}
-        </Button>
+        <p className="text-xs text-muted-foreground">招待したい人に直接渡してください。1回だけ使えて、72時間で切れます。このダイアログを閉じると、もう表示されません。</p>
       </div>
-      {state.error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      ) : null}
-      {state.link ? (
-        <div className="flex flex-col gap-1.5" role="status">
-          <Label htmlFor="invite-link">招待リンク（この画面を離れると二度と表示されません。72時間有効）</Label>
-          <Input id="invite-link" readOnly value={state.link} onFocus={(e) => e.currentTarget.select()} />
-        </div>
-      ) : null}
-    </form>
-  );
-}
-
-export function RoleForm({ action, userId, role }: { action: Action<RoleChangeState>; userId: string; role: Role }) {
-  const [state, formAction, pending] = useActionState(action, {});
+    );
+  }
 
   return (
-    <form action={formAction} className="flex flex-col items-end gap-1">
-      <div className="flex items-center gap-2">
-        <input type="hidden" name="userId" value={userId} />
-        <select name="role" defaultValue={role} aria-label="ロール" className={selectClassName}>
-          <RoleOptions />
+    <form action={formAction} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="invite-role">参加したときのロール</Label>
+        <select id="invite-role" name="role" defaultValue="member" className={controlClassName}>
+          <option value="member">{ROLE_LABEL.member}（OKR とタスクを使える）</option>
+          <option value="owner">{ROLE_LABEL.owner}（設定・メンバー管理もできる）</option>
         </select>
-        <Button type="submit" variant="outline" size="sm" disabled={pending}>
-          変更
-        </Button>
       </div>
-      {state.error ? (
-        <p role="alert" className="text-xs text-destructive">
-          {state.error}
-        </p>
-      ) : null}
-    </form>
-  );
-}
-
-export function DisplayNameForm({ action, displayName }: { action: Action<DisplayNameState>; displayName: string }) {
-  const [state, formAction, pending] = useActionState(action, { displayName });
-
-  return (
-    <form action={formAction} className="flex flex-col gap-2">
-      <div className="flex items-end gap-2">
-        <div className="flex flex-1 flex-col gap-1.5">
-          <Label htmlFor="display-name">あなたの表示名</Label>
-          <Input id="display-name" name="displayName" defaultValue={state.displayName} placeholder="例：山田" />
-        </div>
-        <Button type="submit" variant="outline" disabled={pending}>
-          保存
-        </Button>
-      </div>
-      {state.error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      ) : null}
-      {state.message ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {state.message}
-        </p>
-      ) : null}
+      <ErrorText error={state.error} />
+      <Button type="submit" disabled={pending} className="self-end">
+        {pending ? "作成中…" : "招待リンクを作る"}
+      </Button>
     </form>
   );
 }

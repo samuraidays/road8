@@ -207,6 +207,7 @@ function ConfirmDialog({
   confirmLabel,
   pending,
   onConfirm,
+  confirmVariant = "destructive",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -215,6 +216,7 @@ function ConfirmDialog({
   confirmLabel: string;
   pending: boolean;
   onConfirm: () => void;
+  confirmVariant?: "destructive" | "default";
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -225,7 +227,7 @@ function ConfirmDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>キャンセル</AlertDialogCancel>
-          <Button type="button" variant="destructive" disabled={pending} onClick={onConfirm}>
+          <Button type="button" variant={confirmVariant} disabled={pending} onClick={onConfirm}>
             {pending ? "処理中…" : confirmLabel}
           </Button>
         </AlertDialogFooter>
@@ -240,17 +242,20 @@ export function ConfirmButton({
   title,
   description,
   action,
+  destructive = true,
 }: {
   label: string;
   title: string;
   description?: string;
   action: ButtonAction;
+  // 取り消しにくい操作なら true（確認のボタンを赤にする）。下書きを作るなど、消えるものがない操作は false
+  destructive?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   return (
     <>
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button type="button" variant={destructive ? "outline" : "default"} size="sm" onClick={() => setOpen(true)}>
         {label}
       </Button>
       <ConfirmDialog
@@ -259,6 +264,7 @@ export function ConfirmButton({
         title={title}
         description={description}
         confirmLabel={label}
+        confirmVariant={destructive ? "destructive" : "default"}
         pending={pending}
         onConfirm={() =>
           startTransition(async () => {
@@ -277,7 +283,17 @@ export function ConfirmButton({
 }
 
 // 1行ですばやく追加する。Enter で作成し、入力欄を空に戻して続けて入力できる
-export function QuickAdd({ action, placeholder, label }: { action: FormAction; placeholder: string; label: string }) {
+export function QuickAdd({
+  action,
+  placeholder,
+  label,
+  name = "title",
+}: {
+  action: FormAction;
+  placeholder: string;
+  label: string;
+  name?: string;
+}) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(async (prev, formData) => {
     const result = await action(prev, formData);
     if (!result.error) {
@@ -289,7 +305,7 @@ export function QuickAdd({ action, placeholder, label }: { action: FormAction; p
     <form action={formAction} className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
         <PlusIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <Input name="title" required placeholder={placeholder} aria-label={label} disabled={pending} className="border-dashed" />
+        <Input name={name} required placeholder={placeholder} aria-label={label} disabled={pending} className="border-dashed" />
       </div>
       <ErrorText error={state.error} />
     </form>
@@ -304,6 +320,7 @@ export function InlineText({
   placeholder,
   label,
   className,
+  multiline = true,
 }: {
   action: FormAction;
   name: string;
@@ -311,6 +328,8 @@ export function InlineText({
   placeholder: string;
   label: string;
   className?: string;
+  // false なら1行の入力欄（Enter で保存）
+  multiline?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(async (prev, formData) => {
@@ -340,18 +359,32 @@ export function InlineText({
   }
   return (
     <form action={formAction} className="flex flex-col gap-2">
-      <Textarea
-        name={name}
-        defaultValue={value}
-        aria-label={label}
-        autoFocus
-        rows={3}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            setEditing(false);
-          }
-        }}
-      />
+      {multiline ? (
+        <Textarea
+          name={name}
+          defaultValue={value}
+          aria-label={label}
+          autoFocus
+          rows={3}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setEditing(false);
+            }
+          }}
+        />
+      ) : (
+        <Input
+          name={name}
+          defaultValue={value}
+          aria-label={label}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setEditing(false);
+            }
+          }}
+        />
+      )}
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "保存中…" : "保存"}
