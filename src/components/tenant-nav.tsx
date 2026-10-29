@@ -12,6 +12,8 @@ const ITEMS: { label: string; path: string | null }[] = [
   { label: "タスク", path: "/tasks" },
   { label: "振り返り", path: "/reviews/weekly" },
   { label: "メンバー", path: "/members" },
+  { label: "監査ログ", path: "/audit" },
+  { label: "設定", path: "/settings" },
 ];
 
 export function TenantNav() {

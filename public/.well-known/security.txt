@@ -1,0 +1,6 @@
+# road8 の脆弱性の連絡先（RFC 9116）
+Contact: https://github.com/samuraidays/road8/security/advisories/new
+Expires: 2027-10-29T00:00:00.000Z
+Preferred-Languages: ja, en
+Canonical: https://app.road8.dev/.well-known/security.txt
+Policy: https://app.road8.dev/privacy#security
