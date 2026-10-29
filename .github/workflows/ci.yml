@@ -36,9 +36,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          fetch-depth: 0
+      # supabase/（マイグレーション・テスト・設定）が変わったときだけ DB を起動してテストする（起動に約2分かかるため）。
+      # ジョブ自体は毎回成功させる（必須のチェックなので、ジョブごと飛ばすと PR がマージできなくなる）。
+      # 比べる起点が分からないとき（新しいブランチの最初の push など）は、念のためテストする
+      - id: changes
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "db=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE" "$HEAD" | grep -q '^supabase/'; then
+            echo "db=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "db=false" >> "$GITHUB_OUTPUT"
+            echo "supabase/ に変更がないため、DB のテストを省略します"
+          fi
+      - if: steps.changes.outputs.db == 'true'
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.122.0
       # DB だけを起動し、マイグレーションを適用して RLS・権限のテスト（pgTAP）を実行する
-      - run: supabase db start
-      - run: supabase test db
+      - if: steps.changes.outputs.db == 'true'
+        run: supabase db start
+      - if: steps.changes.outputs.db == 'true'
+        run: supabase test db

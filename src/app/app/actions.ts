@@ -17,6 +17,8 @@ export async function signOut() {
   if (error) {
     throw new Error("ログアウトに失敗しました");
   }
+  // ブラウザに残している画面（next.config の staleTimes）を捨てる。同じ端末で別の人が戻る操作をしても前の画面を出さない
+  revalidatePath("/", "layout");
   redirect("/login");
 }
 

@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { timed } from "@/lib/perf";
 import { createClient } from "@/lib/supabase/server";
 
 export type CurrentUser = {
@@ -15,7 +16,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   // 必ずリクエスト時に確かめる（事前レンダリングやキャッシュの対象にしない）
   await connection();
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await timed("getUser", () => supabase.auth.getUser());
   if (error || !data.user) {
     return null;
   }
