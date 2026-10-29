@@ -106,3 +106,12 @@ export async function updateDisplayName(_prev: DisplayNameState, formData: FormD
   revalidatePath("/app", "layout");
   return { displayName, message: "表示名を保存しました" };
 }
+
+// 「…」メニューからのロール変更（changeRole をフォームなしで呼ぶ）
+export async function setRole(tenantId: string, targetUserId: string, role: Role): Promise<RoleChangeState & { message?: string }> {
+  const formData = new FormData();
+  formData.set("userId", targetUserId);
+  formData.set("role", role);
+  const result = await changeRole(tenantId, {}, formData);
+  return result.error ? result : { message: role === "owner" ? "Owner にしました" : "Member にしました" };
+}

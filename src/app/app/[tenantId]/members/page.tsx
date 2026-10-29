@@ -1,11 +1,11 @@
 import { Suspense } from "react";
+import { InviteForm } from "@/components/member-forms";
 import { PageSkeleton } from "@/components/page-skeleton";
-import { DisplayNameForm, InviteForm, RoleForm } from "@/components/member-forms";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AddDialog, InlineText, RowActions } from "@/components/ux";
 import { listMembers, memberLabel } from "@/lib/members";
 import { ROLE_LABEL } from "@/lib/roles";
 import { requireTenant } from "@/lib/tenants";
-import { changeRole, createInvitation, updateDisplayName } from "./actions";
+import { createInvitation, setRole, updateDisplayName } from "./actions";
 
 export default function MembersPage({ params }: PageProps<"/app/[tenantId]/members">) {
   return (
@@ -20,49 +20,55 @@ async function Members({ params }: Pick<PageProps<"/app/[tenantId]/members">, "p
   const context = await requireTenant(tenantId);
   const members = await listMembers(context);
   const isOwner = context.tenant.role === "owner";
-  const me = members.find((m) => m.isMe);
-  // だれかのロールが変わったら全行のフォームを作り直す（選択欄を DB の値に戻し、ほかの行の古いエラーも消す）
-  const rolesKey = members.map((m) => `${m.userId}:${m.role}`).join(",");
+  const tid = context.tenant.id;
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">メンバー</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">メンバー</h1>
+        {isOwner ? (
+          <AddDialog label="メンバーを招待" title="メンバーを招待" variant="default">
+            <InviteForm action={createInvitation.bind(null, tid)} />
+          </AddDialog>
+        ) : null}
+      </div>
 
-      <ul className="flex flex-col divide-y rounded-lg border">
+      <ul className="flex flex-col divide-y rounded-xl border">
         {members.map((m) => (
-          <li key={m.userId} className="flex items-center justify-between gap-4 px-4 py-3">
-            <span className="min-w-0 truncate">
-              <span className={m.displayName ? undefined : "text-muted-foreground"}>{memberLabel(m, members)}</span>
-              {m.isMe ? <span className="ml-2 text-xs text-muted-foreground">（あなた）</span> : null}
-            </span>
+          <li key={m.userId} className="flex items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              {m.isMe ? (
+                // 自分の表示名は、クリックしてその場で直せる
+                <InlineText
+                  action={updateDisplayName}
+                  name="displayName"
+                  value={m.displayName}
+                  placeholder="クリックして、表示名を入れる"
+                  label="あなたの表示名"
+                  multiline={false}
+                  className="-mx-2 w-auto"
+                />
+              ) : (
+                <span className="text-sm">{memberLabel(m, members)}</span>
+              )}
+            </div>
+            {m.isMe ? <span className="text-xs text-muted-foreground">あなた</span> : null}
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{ROLE_LABEL[m.role]}</span>
             {isOwner ? (
-              <RoleForm
-                key={rolesKey}
-                action={changeRole.bind(null, context.tenant.id)}
-                userId={m.userId}
-                role={m.role}
+              <RowActions
+                label={`${memberLabel(m, members)} の操作`}
+                items={[
+                  m.role === "owner"
+                    ? { label: "Member にする", action: setRole.bind(null, tid, m.userId, "member" as const) }
+                    : { label: "Owner にする", action: setRole.bind(null, tid, m.userId, "owner" as const) },
+                ]}
               />
-            ) : (
-              <span className="shrink-0 text-xs text-muted-foreground">{ROLE_LABEL[m.role]}</span>
-            )}
+            ) : null}
           </li>
         ))}
       </ul>
-
-      {me ? <DisplayNameForm action={updateDisplayName} displayName={me.displayName} /> : null}
-
-      {isOwner ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>メンバーを招待する</CardTitle>
-            <CardDescription>
-              作ったリンクを、招待したい人に直接渡してください。リンクは1回だけ使えます。発行したリンクは取り消せません。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <InviteForm action={createInvitation.bind(null, context.tenant.id)} />
-          </CardContent>
-        </Card>
+      {members.length === 1 ? (
+        <p className="text-sm text-muted-foreground">いまはあなただけです。招待しなければ、ここに入れた内容はあなたにしか見えません。</p>
       ) : null}
     </div>
   );
