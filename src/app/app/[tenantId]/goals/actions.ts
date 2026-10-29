@@ -33,7 +33,7 @@ function revalidate(tenantId: string) {
   revalidatePath(`/app/${tenantId}/okr`);
 }
 
-type PillarInput = { title: string; description: string; position: number };
+type PillarInput = { title: string; description: string };
 
 function parsePillar(formData: FormData): { ok: true; value: PillarInput } | { ok: false; error: string } {
   const title = text(formData, "title");
@@ -44,11 +44,7 @@ function parsePillar(formData: FormData): { ok: true; value: PillarInput } | { o
   if (codePointLength(description) > PILLAR_DESCRIPTION_MAX) {
     return { ok: false, error: `説明は${PILLAR_DESCRIPTION_MAX}文字以内で入力してください` };
   }
-  const position = text(formData, "position");
-  if (!/^\d{1,2}$/.test(position)) {
-    return { ok: false, error: "番号は0〜99で入力してください" };
-  }
-  return { ok: true, value: { title, description, position: Number(position) } };
+  return { ok: true, value: { title, description } };
 }
 
 export async function saveLifeGoal(tenantId: string, _prev: GoalFormState, formData: FormData): Promise<GoalFormState> {
@@ -91,8 +87,20 @@ export async function createPillar(tenantId: string, _prev: GoalFormState, formD
     return { error: parsed.error };
   }
 
+  // 番号は自動で、いまの最後の次にする
   const supabase = await createClient();
-  const { error } = await supabase.from("pillars").insert({ ...parsed.value, tenant_id: context.tenant.id });
+  const last = await supabase
+    .from("pillars")
+    .select("position")
+    .eq("tenant_id", context.tenant.id)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (last.error) {
+    return failed("pillar.create", context, last.error);
+  }
+  const position = Math.min((last.data?.position ?? 0) + 1, 99);
+  const { error } = await supabase.from("pillars").insert({ ...parsed.value, position, tenant_id: context.tenant.id });
   if (error) {
     return failed("pillar.create", context, error);
   }
@@ -157,6 +165,44 @@ export async function deletePillar(tenantId: string, pillarId: string): Promise<
   }
   if (data.length === 0) {
     return { error: "柱が見つかりません" };
+  }
+  revalidate(context.tenant.id);
+  return {};
+}
+
+// 柱の並べ替え。ひとつ上（または下）の柱と番号を入れ替える
+export async function movePillar(tenantId: string, pillarId: string, direction: "up" | "down"): Promise<GoalFormState> {
+  const context = await requireOwner(tenantId);
+  if (!("tenant" in context)) {
+    return context;
+  }
+  if (!isUuid(pillarId)) {
+    return { error: "柱が見つかりません" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("pillars")
+    .select("id, position")
+    .eq("tenant_id", context.tenant.id)
+    .order("position")
+    .order("created_at");
+  if (error) {
+    return failed("pillar.update", context, error);
+  }
+  const index = data.findIndex((p) => p.id === pillarId);
+  const neighbor = data[direction === "up" ? index - 1 : index + 1];
+  if (index < 0 || !neighbor) {
+    return {};
+  }
+  // 番号を振り直してから入れ替える（同じ番号が並んでいても順番が決まるように）
+  const order = data.map((p) => p.id);
+  [order[index], order[direction === "up" ? index - 1 : index + 1]] = [neighbor.id, pillarId];
+  for (const [i, id] of order.entries()) {
+    const { error: updateError } = await supabase.from("pillars").update({ position: i + 1 }).eq("tenant_id", context.tenant.id).eq("id", id);
+    if (updateError) {
+      return failed("pillar.update", context, updateError);
+    }
   }
   revalidate(context.tenant.id);
   return {};

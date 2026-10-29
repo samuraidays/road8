@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Toaster } from "@/components/ui/sonner";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         {children}
+        <Toaster position="bottom-right" />
         <footer className="flex justify-center gap-4 border-t px-4 py-3 text-xs text-muted-foreground">
           <Link href="/terms" className="hover:underline">
             利用規約

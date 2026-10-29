@@ -1,14 +1,15 @@
 import { Suspense } from "react";
-import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
-import { LifeGoalForm, PillarForm } from "@/components/goal-forms";
-import { DeleteButton, ReasonForm } from "@/components/okr-forms";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PillarForm } from "@/components/goal-forms";
+import { PrivateLabel } from "@/components/okr-forms";
+import { PageSkeleton } from "@/components/page-skeleton";
+import { AddDialog, InlineText, RowActions, type MenuItemSpec } from "@/components/ux";
 import { getGoals, type Pillar } from "@/lib/goals";
 import { currentYearQuarter, quarterMonths } from "@/lib/period";
 import { requireTenant } from "@/lib/tenants";
+import { cn } from "@/lib/utils";
 import { saveReason } from "../okr/actions";
-import { createPillar, deletePillar, saveLifeGoal, updatePillar } from "./actions";
+import { createPillar, deletePillar, movePillar, saveLifeGoal, updatePillar } from "./actions";
 
 export default function GoalsPage({ params }: PageProps<"/app/[tenantId]/goals">) {
   return (
@@ -27,81 +28,108 @@ async function Goals({ params }: Pick<PageProps<"/app/[tenantId]/goals">, "param
   const { year, quarter } = currentYearQuarter();
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">人生のゴール</h1>
-
-      <Card>
-        <CardContent className="pt-1">
-          {isOwner ? (
-            <LifeGoalForm key={goals.statement} action={saveLifeGoal.bind(null, tid)} statement={goals.statement} />
-          ) : (
-            <p className="text-sm break-words whitespace-pre-wrap">{goals.statement || "まだ書かれていません"}</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="font-medium">柱</h2>
-        <p className="text-sm text-muted-foreground">
-          今期は {year}年 Q{quarter}（{quarterMonths(quarter)}）です。柱ごとに今期の Objective の数を出しています。
-        </p>
-        {goals.pillars.length === 0 ? (
-          <p className="text-sm text-muted-foreground">柱はまだありません。{isOwner ? "下から作成してください。" : ""}</p>
+    <div className="flex flex-col gap-8">
+      <section className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold">人生のゴール</h1>
+        {isOwner ? (
+          <InlineText
+            action={saveLifeGoal.bind(null, tid)}
+            name="statement"
+            value={goals.statement}
+            placeholder="クリックして、どんな人生にしたいかを書く"
+            label="人生のゴール"
+            className="rounded-xl bg-muted/50 px-5 py-4 text-base"
+          />
         ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {goals.pillars.map((p) => (
-              <PillarCard key={p.id} tenantId={tid} pillar={p} isOwner={isOwner} />
-            ))}
-          </div>
+          <p className="rounded-xl bg-muted/50 px-5 py-4 leading-7 whitespace-pre-wrap">{goals.statement || "まだ書かれていません"}</p>
         )}
       </section>
 
-      {isOwner ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>柱を作る</CardTitle>
-            <CardDescription>最終ゴールを、取り組む分野に分けたものです。Objective はどれかの柱にひもづけます。</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <PillarForm action={createPillar.bind(null, tid)} submitLabel="作成する" idPrefix="new-pillar" values={{ title: "", description: "", position: goals.pillars.length + 1 }} />
-          </CardContent>
-        </Card>
-      ) : null}
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-medium">柱</h2>
+            <p className="text-sm text-muted-foreground">
+              ゴールを分野に分けたものです。今期（{year}年 Q{quarter}・{quarterMonths(quarter)}）の Objective の数を出しています。
+            </p>
+          </div>
+          {isOwner ? (
+            <AddDialog label="柱を追加" title="柱を追加">
+              <PillarForm action={createPillar.bind(null, tid)} submitLabel="追加" idPrefix="new-pillar" />
+            </AddDialog>
+          ) : null}
+        </div>
+
+        {goals.pillars.length === 0 ? (
+          <div className="rounded-xl border border-dashed px-6 py-8 text-center text-sm text-muted-foreground">
+            「事業をつくる」「魅力を高める」のように、ゴールを3〜5個の柱に分けると、OKR を立てやすくなります。
+          </div>
+        ) : (
+          <ol className="grid gap-3 md:grid-cols-2">
+            {goals.pillars.map((p, i) => (
+              <PillarCard key={p.id} tenantId={tid} pillar={p} index={i} count={goals.pillars.length} isOwner={isOwner} />
+            ))}
+          </ol>
+        )}
+      </section>
     </div>
   );
 }
 
-function PillarCard({ tenantId, pillar: p, isOwner }: { tenantId: string; pillar: Pillar; isOwner: boolean }) {
+function PillarCard({
+  tenantId,
+  pillar: p,
+  index,
+  count,
+  isOwner,
+}: {
+  tenantId: string;
+  pillar: Pillar;
+  index: number;
+  count: number;
+  isOwner: boolean;
+}) {
+  const items: MenuItemSpec[] = [
+    ...(index > 0 ? [{ label: "上へ移動", action: movePillar.bind(null, tenantId, p.id, "up" as const) }] : []),
+    ...(index < count - 1 ? [{ label: "下へ移動", action: movePillar.bind(null, tenantId, p.id, "down" as const) }] : []),
+  ];
+
   return (
-    <Card size="sm">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="break-words">{p.title}</CardTitle>
-          <Link
-            href={`/app/${tenantId}/okr`}
-            className={p.currentObjectiveCount === 0 ? "shrink-0 text-xs text-amber-700 dark:text-amber-400" : "shrink-0 text-xs text-muted-foreground"}
-          >
-            今期 {p.currentObjectiveCount === 0 ? "なし" : `${p.currentObjectiveCount}件`}
-          </Link>
+    <li className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs tabular-nums">{index + 1}</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h3 className="font-medium break-words">{p.title}</h3>
+          {p.description ? <p className="text-sm break-words whitespace-pre-wrap text-muted-foreground">{p.description}</p> : null}
         </div>
-        {p.description ? <CardDescription className="break-words whitespace-pre-wrap">{p.description}</CardDescription> : null}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <ReasonForm key={p.reason} action={saveReason.bind(null, tenantId, { pillarId: p.id })} body={p.reason} idPrefix={`pillar-${p.id}`} label="なぜ（本人だけ）" />
+        <Link
+          href={`/app/${tenantId}/okr`}
+          className={cn("shrink-0 text-xs", p.currentObjectiveCount === 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}
+        >
+          今期 {p.currentObjectiveCount === 0 ? "なし" : `${p.currentObjectiveCount}件`}
+        </Link>
         {isOwner ? (
-          <details className="text-sm">
-            <summary className="cursor-pointer text-muted-foreground">柱を編集</summary>
-            <div className="mt-2 flex flex-col gap-3">
-              <PillarForm key={JSON.stringify([p.title, p.description, p.position])} action={updatePillar.bind(null, tenantId, p.id)} values={p} submitLabel="保存" idPrefix={`pillar-${p.id}`} />
-              <DeleteButton
-                action={deletePillar.bind(null, tenantId, p.id)}
-                label="柱を削除"
-                confirmMessage="この柱を削除します。ひもづいた Objective は残り、柱が外れます。柱の「なぜ」は消えます。よろしいですか？"
-              />
-            </div>
-          </details>
+          <RowActions
+            label={`柱「${p.title}」の操作`}
+            editTitle="柱を編集"
+            editForm={<PillarForm action={updatePillar.bind(null, tenantId, p.id)} values={p} submitLabel="保存" idPrefix={`pillar-${p.id}`} />}
+            items={items}
+            deleteTitle="柱を削除しますか？"
+            deleteDescription="ひもづいた Objective は残り、柱が外れます。この柱の「なぜ」は消えます。"
+            deleteAction={deletePillar.bind(null, tenantId, p.id)}
+          />
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+      <div className="flex flex-col gap-1">
+        <PrivateLabel>なぜ（本人だけ）</PrivateLabel>
+        <InlineText
+          action={saveReason.bind(null, tenantId, { pillarId: p.id })}
+          name="body"
+          value={p.reason}
+          placeholder="クリックして、これを目指す理由を書く"
+          label="なぜ"
+        />
+      </div>
+    </li>
   );
 }

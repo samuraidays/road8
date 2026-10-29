@@ -1,66 +1,40 @@
 "use client";
 
-import { useActionState } from "react";
-import type { GoalFormState } from "@/app/app/[tenantId]/goals/actions";
-import { controlClassName, ErrorMessage } from "@/components/okr-forms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ErrorText, useFormAction, type FormAction } from "@/components/ux";
 
-type Action = (prev: GoalFormState, formData: FormData) => Promise<GoalFormState>;
-
-export function LifeGoalForm({ action, statement }: { action: Action; statement: string }) {
-  const [state, formAction, pending] = useActionState(action, {});
-
-  return (
-    <form action={formAction} className="flex flex-col gap-2">
-      <Label htmlFor="life-goal">最終ゴール</Label>
-      <textarea id="life-goal" name="statement" defaultValue={statement} rows={4} className={controlClassName} placeholder="どんな人生にしたいか" />
-      <div className="flex items-center gap-2">
-        <Button type="submit" variant="outline" size="sm" disabled={pending}>
-          保存
-        </Button>
-        <ErrorMessage error={state.error} />
-      </div>
-    </form>
-  );
-}
-
+// 柱の入力（ダイアログの中で使う）。番号は自動で付く
 export function PillarForm({
   action,
   values,
   submitLabel,
   idPrefix,
 }: {
-  action: Action;
-  values?: { title: string; description: string; position: number };
+  action: FormAction;
+  values?: { title: string; description: string };
   submitLabel: string;
   idPrefix: string;
 }) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const [state, formAction, pending] = useFormAction(action);
+  const v = state.submitted;
 
   return (
-    <form action={formAction} className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex w-20 flex-col gap-1.5">
-          <Label htmlFor={`${idPrefix}-position`}>番号</Label>
-          <Input id={`${idPrefix}-position`} name="position" type="number" min={0} max={99} defaultValue={values?.position ?? 1} />
-        </div>
-        <div className="flex min-w-48 flex-1 flex-col gap-1.5">
-          <Label htmlFor={`${idPrefix}-title`}>柱の名前</Label>
-          <Input id={`${idPrefix}-title`} name="title" defaultValue={values?.title} required placeholder="例：自分の力で稼ぐ事業をつくる" />
-        </div>
+    <form action={formAction} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${idPrefix}-title`}>柱の名前</Label>
+        <Input id={`${idPrefix}-title`} name="title" defaultValue={v?.title ?? values?.title} required autoFocus placeholder="自分の力で稼ぐ事業をつくる" />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={`${idPrefix}-description`}>説明（任意）</Label>
-        <textarea id={`${idPrefix}-description`} name="description" defaultValue={values?.description} rows={2} className={controlClassName} />
+        <Textarea id={`${idPrefix}-description`} name="description" defaultValue={v?.description ?? values?.description} rows={3} />
       </div>
-      <div className="flex items-center gap-2">
-        <Button type="submit" variant="outline" size="sm" disabled={pending}>
-          {submitLabel}
-        </Button>
-        <ErrorMessage error={state.error} />
-      </div>
+      <ErrorText error={state.error} />
+      <Button type="submit" disabled={pending} className="self-end">
+        {pending ? "保存中…" : submitLabel}
+      </Button>
     </form>
   );
 }
