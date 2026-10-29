@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(29);
+select plan(32);
 
 insert into auth.users (id, email) values
   ('77777777-7777-7777-7777-777777777777', 'gina@example.test'),
@@ -173,6 +173,27 @@ select throws_ok(
        ('99990000-0000-0000-0000-00000000000a', '99990000-0000-0000-0000-0000000000e1', '逆',
         '2026-10-28 08:00+09', '2026-10-28 07:00+09', '88888888-8888-8888-8888-888888888888') $$,
   '23514', null, 'task.create: 終了は開始より後'
+);
+
+-- KR にひもづかないタスクと、ひもづけの変更
+select pg_temp.login('88888888-8888-8888-8888-888888888888');
+select lives_ok(
+  $$ insert into public.tasks (id, tenant_id, title, created_by) values
+       ('99990000-0000-0000-0000-0000000000a9', '99990000-0000-0000-0000-00000000000a', 'KR なし', '88888888-8888-8888-8888-888888888888') $$,
+  'task.create: KR にひもづけずにタスクを作れる'
+);
+select lives_ok(
+  $$ update public.tasks set key_result_id = '99990000-0000-0000-0000-0000000000e1' where id = '99990000-0000-0000-0000-0000000000a9' $$,
+  'task.update: 同じテナントの KR にひもづけ直せる'
+);
+select pg_temp.login('99999999-9999-9999-9999-999999999999');
+insert into public.objectives (id, tenant_id, title) values ('99990000-0000-0000-0000-0000000000d9', '99990000-0000-0000-0000-00000000000b', 'H の O');
+insert into public.key_results (id, tenant_id, objective_id, title) values
+  ('99990000-0000-0000-0000-0000000000e9', '99990000-0000-0000-0000-00000000000b', '99990000-0000-0000-0000-0000000000d9', 'H の KR');
+select pg_temp.login('88888888-8888-8888-8888-888888888888');
+select throws_ok(
+  $$ update public.tasks set key_result_id = '99990000-0000-0000-0000-0000000000e9' where id = '99990000-0000-0000-0000-0000000000a9' $$,
+  '23503', null, 'task.update: 他テナントの KR にはひもづけられない'
 );
 
 -- ---------------------------------------------------------------------------

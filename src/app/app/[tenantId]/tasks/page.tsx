@@ -4,7 +4,9 @@ import type { Option } from "@/components/okr-forms";
 import { TaskItem } from "@/components/task-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listMembers, memberLabel } from "@/lib/members";
-import { getGoogleStatus, listTasks, type TaskWithContext } from "@/lib/tasks";
+import { getGoogleStatus, listKeyResultGroups, listTasks, type KeyResultGroup, type TaskWithContext } from "@/lib/tasks";
+import { TaskForm } from "@/components/task-forms";
+import { createTask } from "./actions";
 import { DisconnectGoogleButton } from "@/components/google-forms";
 import { disconnectGoogle } from "../../google/actions";
 import { requireTenant } from "@/lib/tenants";
@@ -24,6 +26,7 @@ function TaskSection({
   members,
   empty,
   googleConnected,
+  keyResults,
 }: {
   title: string;
   tasks: TaskWithContext[];
@@ -31,6 +34,7 @@ function TaskSection({
   members: Option[];
   empty: string;
   googleConnected: boolean;
+  keyResults: KeyResultGroup[];
 }) {
   return (
     <Card>
@@ -50,8 +54,9 @@ function TaskSection({
                 tenantId={tenantId}
                 task={t}
                 members={members}
-                context={`${t.objectiveTitle} ／ ${t.keyResultTitle}`}
+                context={t.keyResultTitle ? `${t.objectiveTitle} ／ ${t.keyResultTitle}` : "OKR にひもづいていません"}
                 googleConnected={googleConnected}
+                keyResults={keyResults}
               />
             ))}
           </ul>
@@ -64,7 +69,12 @@ function TaskSection({
 async function Tasks({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/tasks">, "params" | "searchParams">) {
   const [{ tenantId }, query] = await Promise.all([params, searchParams]);
   const context = await requireTenant(tenantId);
-  const [tasks, members, google] = await Promise.all([listTasks(context), listMembers(context), getGoogleStatus(context.user.id)]);
+  const [tasks, members, google, keyResults] = await Promise.all([
+    listTasks(context),
+    listMembers(context),
+    getGoogleStatus(context.user.id),
+    listKeyResultGroups(context),
+  ]);
   const memberOptions: Option[] = members.map((m) => ({ id: m.userId, label: memberLabel(m, members) }));
   const tid = context.tenant.id;
   const scheduled = tasks.open.filter((t) => t.scheduledStart);
@@ -74,8 +84,16 @@ async function Tasks({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/t
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">タスク</h1>
       <p className="text-sm text-muted-foreground">
-        タスクは <Link href={`/app/${tid}/okr`} className="underline">OKR</Link> の Key Result から作ります。やる日時を入れたタスクは、Google カレンダーに予定として入れられます。
+        タスクはここか <Link href={`/app/${tid}/okr`} className="underline">OKR</Link> の Key Result から作ります。OKR へのひもづけは任意で、あとから変えられます。やる日時を入れたタスクは、Google カレンダーに予定として入れられます。
       </p>
+      <Card>
+        <CardHeader>
+          <CardTitle>タスクを作る</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TaskForm action={createTask.bind(null, tid, null)} members={memberOptions} keyResults={keyResults} submitLabel="作成する" idPrefix="new-task" />
+        </CardContent>
+      </Card>
       <Card size="sm">
         <CardHeader>
           <CardTitle>Google カレンダー</CardTitle>
@@ -99,9 +117,9 @@ async function Tasks({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/t
           )}
         </CardContent>
       </Card>
-      <TaskSection title="やる日時が決まっているもの" tasks={scheduled} tenantId={tid} members={memberOptions} empty="ありません" googleConnected={google.connected} />
-      <TaskSection title="まだ日時を決めていないもの" tasks={unscheduled} tenantId={tid} members={memberOptions} empty="ありません" googleConnected={google.connected} />
-      <TaskSection title="最近完了したもの（2週間）" tasks={tasks.done} tenantId={tid} members={memberOptions} empty="ありません" googleConnected={google.connected} />
+      <TaskSection title="やる日時が決まっているもの" tasks={scheduled} tenantId={tid} members={memberOptions} empty="ありません" googleConnected={google.connected} keyResults={keyResults} />
+      <TaskSection title="まだ日時を決めていないもの" tasks={unscheduled} tenantId={tid} members={memberOptions} empty="ありません" googleConnected={google.connected} keyResults={keyResults} />
+      <TaskSection title="最近完了したもの（2週間）" tasks={tasks.done} tenantId={tid} members={memberOptions} empty="ありません" googleConnected={google.connected} keyResults={keyResults} />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import type { TaskFormState } from "@/app/app/[tenantId]/tasks/actions";
+import type { KeyResultGroup } from "@/lib/tasks";
 import { controlClassName, ErrorMessage, type Option } from "@/components/okr-forms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ export type TaskValues = {
   startTime: string;
   endTime: string;
   assigneeUserId: string | null;
+  keyResultId?: string | null;
 };
 
 // 送信後のフォームのリセットで入力が消えないように、エラーのときは送った値を覚えておく
@@ -28,12 +30,15 @@ export function TaskForm({
   values,
   submitLabel,
   idPrefix,
+  keyResults,
 }: {
   action: Action;
   members: Option[];
   values?: TaskValues;
   submitLabel: string;
   idPrefix: string;
+  // 渡したときだけ KR の選択欄を出す（OKR 画面では KR が決まっているので出さない）
+  keyResults?: KeyResultGroup[];
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(async (prev, formData) => {
     const result = await action(prev, formData);
@@ -57,6 +62,28 @@ export function TaskForm({
           <Label htmlFor={`${idPrefix}-title`}>タスク</Label>
           <Input id={`${idPrefix}-title`} name="title" defaultValue={v?.title ?? values?.title} required placeholder="例：初期侵入ブローカーの解説記事を書く" />
         </div>
+        {keyResults ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`${idPrefix}-kr`}>OKR</Label>
+            <select
+              id={`${idPrefix}-kr`}
+              name="keyResultId"
+              defaultValue={v?.keyResultId ?? values?.keyResultId ?? ""}
+              className={`${controlClassName} max-w-72`}
+            >
+              <option value="">ひもづけない</option>
+              {keyResults.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.options.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`${idPrefix}-due`}>期日</Label>
           <input id={`${idPrefix}-due`} type="date" name="dueDate" defaultValue={v?.dueDate ?? values?.dueDate ?? ""} className={controlClassName} />

@@ -34,6 +34,8 @@ export type TaskInput = {
   scheduled_start: string | null;
   scheduled_end: string | null;
   assignee_user_id: string | null;
+  // フォームに KR の選択欄があるときだけ入る（null は「ひもづけない」）
+  key_result_id?: string | null;
 };
 export type HabitInput = { title: string; times_per_week: number };
 
@@ -198,6 +200,11 @@ export function parseTask(formData: FormData): Parsed<TaskInput> {
   if (!assignee.ok) {
     return assignee;
   }
+  // KR が同じテナントのものかは、DB の複合外部キーが確かめる
+  const keyResult = formData.has("keyResultId") ? parseOptionalId(formData, "keyResultId", "Key Result") : null;
+  if (keyResult && !keyResult.ok) {
+    return keyResult;
+  }
 
   const date = text(formData, "scheduleDate");
   const start = text(formData, "startTime");
@@ -222,6 +229,7 @@ export function parseTask(formData: FormData): Parsed<TaskInput> {
       scheduled_start: scheduled?.start ?? null,
       scheduled_end: scheduled?.end ?? null,
       assignee_user_id: assignee.value,
+      ...(keyResult ? { key_result_id: keyResult.value } : {}),
     },
   };
 }

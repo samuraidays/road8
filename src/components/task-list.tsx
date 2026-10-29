@@ -4,7 +4,7 @@ import { CalendarButton } from "@/components/google-forms";
 import { DeleteButton, type Option } from "@/components/okr-forms";
 import { TaskCheckbox, TaskForm } from "@/components/task-forms";
 import { formatSchedule, splitJapanDateTime } from "@/lib/period";
-import type { Task } from "@/lib/tasks";
+import type { KeyResultGroup, Task } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
 function formatDue(date: string): string {
@@ -18,12 +18,14 @@ export function TaskItem({
   members,
   context,
   googleConnected,
+  keyResults,
 }: {
   tenantId: string;
   task: Task;
   members: Option[];
   context?: string;
   googleConnected: boolean;
+  keyResults?: KeyResultGroup[];
 }) {
   const done = t.status === "done";
   const assignee = members.find((m) => m.id === t.assigneeUserId);
@@ -52,7 +54,7 @@ export function TaskItem({
         <summary className="cursor-pointer text-xs text-muted-foreground">編集</summary>
         <div className="mt-2 flex flex-col gap-2">
           <TaskForm
-            key={JSON.stringify([t.title, t.dueDate, t.scheduledStart, t.scheduledEnd, t.assigneeUserId])}
+            key={JSON.stringify([t.title, t.dueDate, t.scheduledStart, t.scheduledEnd, t.assigneeUserId, t.keyResultId])}
             action={updateTask.bind(null, tenantId, t.id)}
             members={members}
             values={{
@@ -62,7 +64,9 @@ export function TaskItem({
               startTime: start?.time ?? "",
               endTime: end?.time ?? "",
               assigneeUserId: t.assigneeUserId,
+              keyResultId: t.keyResultId,
             }}
+            keyResults={keyResults}
             submitLabel="保存"
             idPrefix={`task-${t.id}`}
           />
