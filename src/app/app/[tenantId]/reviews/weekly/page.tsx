@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon, LockIcon } from "lucide-react";
 import { WeeklyReviewForm } from "@/components/review-forms";
@@ -12,7 +13,7 @@ import { saveWeeklyReview } from "../actions";
 
 export default function WeeklyReviewPage({ params, searchParams }: PageProps<"/app/[tenantId]/reviews/weekly">) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <WeeklyReview params={params} searchParams={searchParams} />
     </Suspense>
   );

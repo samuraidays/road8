@@ -11,7 +11,7 @@ export default function AppPage() {
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-6">
       <section className="flex flex-col gap-3">
         <h1 className="text-xl font-semibold">テナント</h1>
-        <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+        <Suspense fallback={<div className="h-24 animate-pulse rounded-lg bg-muted" aria-busy="true" aria-label="読み込み中" />}>
           <TenantList />
         </Suspense>
       </section>

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import type { Option } from "@/components/okr-forms";
 import { TaskItem } from "@/components/task-list";
@@ -7,13 +8,13 @@ import { listMembers, memberLabel } from "@/lib/members";
 import { getGoogleStatus, listKeyResultGroups, listTasks, type KeyResultGroup, type TaskWithContext } from "@/lib/tasks";
 import { TaskForm } from "@/components/task-forms";
 import { createTask } from "./actions";
-import { DisconnectGoogleButton } from "@/components/google-forms";
+import { AddDialog, ConfirmButton, QuickAdd } from "@/components/ux";
 import { disconnectGoogle } from "../../google/actions";
 import { requireTenant } from "@/lib/tenants";
 
 export default function TasksPage({ params, searchParams }: PageProps<"/app/[tenantId]/tasks">) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <Tasks params={params} searchParams={searchParams} />
     </Suspense>
   );
@@ -86,14 +87,12 @@ async function Tasks({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/t
       <p className="text-sm text-muted-foreground">
         タスクはここか <Link href={`/app/${tid}/okr`} className="underline">OKR</Link> の Key Result から作ります。OKR へのひもづけは任意で、あとから変えられます。やる日時を入れたタスクは、Google カレンダーに予定として入れられます。
       </p>
-      <Card>
-        <CardHeader>
-          <CardTitle>タスクを作る</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TaskForm action={createTask.bind(null, tid, null)} members={memberOptions} keyResults={keyResults} submitLabel="作成する" idPrefix="new-task" />
-        </CardContent>
-      </Card>
+      <section className="flex flex-col gap-2">
+        <QuickAdd action={createTask.bind(null, tid, null)} placeholder="タスクを追加（Enter で作成）" label="タスクを追加" />
+        <AddDialog label="日時や OKR を決めて追加" title="タスクを追加" variant="ghost">
+          <TaskForm action={createTask.bind(null, tid, null)} members={memberOptions} keyResults={keyResults} submitLabel="追加" idPrefix="new-task" />
+        </AddDialog>
+      </section>
       <Card size="sm">
         <CardHeader>
           <CardTitle>Google カレンダー</CardTitle>
@@ -105,7 +104,12 @@ async function Tasks({ params, searchParams }: Pick<PageProps<"/app/[tenantId]/t
             <div className="flex flex-wrap items-center gap-3">
               <span>連携しています。予定は「road8」という名前のカレンダーに入ります。</span>
               <a href={`/app/google/connect?returnTo=/app/${tid}/tasks`} className="underline">連携し直す</a>
-              <DisconnectGoogleButton action={disconnectGoogle} />
+              <ConfirmButton
+                label="連携を解除"
+                title="Google カレンダーとの連携を解除しますか？"
+                description="カレンダーに入れた予定は残ります。"
+                action={disconnectGoogle}
+              />
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-3">
