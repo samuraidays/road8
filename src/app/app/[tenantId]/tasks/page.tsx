@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import type { Option } from "@/components/okr-forms";
 import { TaskItem } from "@/components/task-list";
@@ -13,7 +14,7 @@ import { requireTenant } from "@/lib/tenants";
 
 export default function TasksPage({ params, searchParams }: PageProps<"/app/[tenantId]/tasks">) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <Tasks params={params} searchParams={searchParams} />
     </Suspense>
   );

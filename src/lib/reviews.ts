@@ -96,3 +96,19 @@ export async function getQuarterlyReview(
   }
   return { learned: data?.learned ?? "", nextSteps: data?.next_steps ?? "" };
 }
+
+// 今週のフォーカス：前の週の振り返りに書いた「来週やる3つ」（本人だけ）
+export async function getWeeklyFocus({ user, tenant }: TenantContext, lastWeekStart: string): Promise<string> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("weekly_reviews")
+    .select("next_focus")
+    .eq("tenant_id", tenant.id)
+    .eq("user_id", user.id)
+    .eq("week_start", lastWeekStart)
+    .maybeSingle();
+  if (error) {
+    throw new Error("今週のフォーカスを取得できませんでした");
+  }
+  return data?.next_focus ?? "";
+}

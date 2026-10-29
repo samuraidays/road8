@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import { LifeGoalForm, PillarForm } from "@/components/goal-forms";
 import { DeleteButton, ReasonForm } from "@/components/okr-forms";
@@ -11,7 +12,7 @@ import { createPillar, deletePillar, saveLifeGoal, updatePillar } from "./action
 
 export default function GoalsPage({ params }: PageProps<"/app/[tenantId]/goals">) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <Goals params={params} />
     </Suspense>
   );

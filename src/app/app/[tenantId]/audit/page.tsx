@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { actionLabel, AUDIT_PAGE_SIZE, listAuditLogs } from "@/lib/audit";
@@ -7,7 +8,7 @@ import { requireTenant } from "@/lib/tenants";
 
 export default function AuditPage({ params, searchParams }: PageProps<"/app/[tenantId]/audit">) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <Audit params={params} searchParams={searchParams} />
     </Suspense>
   );

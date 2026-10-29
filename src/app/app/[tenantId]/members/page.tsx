@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import { DisplayNameForm, InviteForm, RoleForm } from "@/components/member-forms";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listMembers, memberLabel } from "@/lib/members";
@@ -8,7 +9,7 @@ import { changeRole, createInvitation, updateDisplayName } from "./actions";
 
 export default function MembersPage({ params }: PageProps<"/app/[tenantId]/members">) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <Members params={params} />
     </Suspense>
   );

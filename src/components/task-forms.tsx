@@ -138,7 +138,7 @@ export function TaskCheckbox({
             setError(result.error);
           })
         }
-        className={cn("size-4 accent-primary", pending && "opacity-50")}
+        className={cn("size-4 accent-progress", pending && "opacity-50")}
       />
       <ErrorMessage error={error} />
     </span>

@@ -304,7 +304,7 @@ export function HabitWeek({
               }
               className={cn(
                 "size-7 rounded-full border text-xs",
-                d.done ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                d.done ? "border-progress bg-progress text-progress-foreground" : "border-input",
                 future && "opacity-40",
               )}
             >

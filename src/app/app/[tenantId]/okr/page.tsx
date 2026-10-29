@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon, RepeatIcon } from "lucide-react";
 import { MetricChart } from "@/components/metric-chart";
@@ -40,7 +41,7 @@ import {
 
 export default function OkrPage({ params, searchParams }: PageProps<"/app/[tenantId]/okr">) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted-foreground">読み込み中…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <Okr params={params} searchParams={searchParams} />
     </Suspense>
   );
@@ -256,7 +257,7 @@ function KeyResultItem({
         <span className="shrink-0 text-muted-foreground tabular-nums">{summary}</span>
       </div>
       <div className="h-2 rounded-full bg-muted" role="progressbar" aria-valuenow={kr.progress} aria-valuemin={0} aria-valuemax={100} aria-label={kr.title}>
-        <div className="h-2 rounded-full bg-primary" style={{ width: `${kr.progress}%` }} />
+        <div className="h-2 rounded-full bg-progress" style={{ width: `${kr.progress}%` }} />
       </div>
 
       {kr.kind === "metric" && kr.startValue !== null && kr.targetValue !== null ? (
@@ -278,7 +279,7 @@ function KeyResultItem({
               <span className="min-w-0 flex-1 break-words">
                 習慣：{h.title}（週{h.timesPerWeek}回）
               </span>
-              <span className={cn("text-xs tabular-nums", doneCount >= h.timesPerWeek ? "text-green-700 dark:text-green-400" : "text-muted-foreground")}>
+              <span className={cn("text-xs tabular-nums", doneCount >= h.timesPerWeek ? "text-progress" : "text-muted-foreground")}>
                 今週 {doneCount}/{h.timesPerWeek}
               </span>
               <HabitWeek toggle={toggleHabitCheck.bind(null, tenantId, h.id)} week={h.week} today={today} title={h.title} />
