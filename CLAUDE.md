@@ -33,7 +33,10 @@ OKR＋タスク管理のマルチテナント SaaS。セキュリティ評価・
 
 - `main` への直接 push はしない。PR を作り、CI（lint・型チェック・build・gitleaks・CodeQL）を通す
 - 画面の変更は、本番に出す前に **ローカルで本人に触ってもらって確認する**。手順：`supabase start` と `npm run dev` を起動し、http://localhost:3000 で確認してもらう（ローカルのアカウントは `/signup` で作り、確認メールは Mailpit http://127.0.0.1:54324 で開く）。指摘があればローカルで直してから PR をマージし、本番へリリースする
-- PR では `/code-review` を実行し、指摘と対応を PR に書く
+- PR では `/code-review` を実行し、指摘と対応を PR に書く。重さは変更の種類で分ける
+  - **high**：DB（マイグレーション・RLS・権限）、認証・認可、`service_role`、外部連携（OAuth・トークン）、Server Action の追加
+  - **medium**：画面だけの変更（見た目・操作・文言）、ドキュメント
+- CI の DB テスト（`db-test`）は、`supabase/` が変わったときだけ DB を起動する（それ以外は省略して成功にする）。リリース PR（`main` → `production`）でも同じ
 - 環境は本番とローカル開発の2つだけ（ステージングはない）。`production` にマージすると本番に Vercel が自動デプロイする。`main` へのマージではデプロイされない
 - マイグレーションは必ずローカルの Supabase（`supabase db reset`）で確認してから本番に流す。本番の DB パスワードや secret キーをローカルのファイルやコードに置かない
 
