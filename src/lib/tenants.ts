@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireUser, type CurrentUser } from "@/lib/auth";
 import type { Role } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
+import { codePointLength } from "@/lib/text";
 
 export type TenantSummary = {
   id: string;
@@ -77,3 +78,15 @@ export const requireTenant = cache(async (tenantId: string): Promise<TenantConte
   }
   return { user, tenant };
 });
+
+// テナント名の決まり（作成と変更で共通）。DB の check（char_length between 1 and 100）と同じく、コードポイントで数える
+const TENANT_NAME_MAX = 100;
+
+export function parseTenantName(value: FormDataEntryValue | null): { ok: true; name: string } | { ok: false; name: string; error: string } {
+  const name = String(value ?? "").trim();
+  const length = codePointLength(name);
+  if (length < 1 || length > TENANT_NAME_MAX) {
+    return { ok: false, name, error: `テナント名は1〜${TENANT_NAME_MAX}文字で入力してください` };
+  }
+  return { ok: true, name };
+}
