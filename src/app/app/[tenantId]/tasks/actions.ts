@@ -35,14 +35,15 @@ function revalidate(tenantId: string) {
   revalidatePath(`/app/${tenantId}/okr`);
 }
 
+// KR は bind で決まっている（OKR 画面）か、フォームで選ぶ（「タスク」画面。選ばなければ KR なし）
 export async function createTask(
   tenantId: string,
-  keyResultId: string,
+  keyResultId: string | null,
   _prev: TaskFormState,
   formData: FormData,
 ): Promise<TaskFormState> {
   const context = await requireTenant(tenantId);
-  if (!isUuid(keyResultId)) {
+  if (keyResultId !== null && !isUuid(keyResultId)) {
     return { error: "Key Result が見つかりません" };
   }
   const parsed = parseTask(formData);
@@ -52,9 +53,9 @@ export async function createTask(
 
   const supabase = await createClient();
   const { error } = await supabase.from("tasks").insert({
+    key_result_id: keyResultId,
     ...parsed.value,
     tenant_id: context.tenant.id,
-    key_result_id: keyResultId,
     created_by: context.user.id,
   });
   if (error) {

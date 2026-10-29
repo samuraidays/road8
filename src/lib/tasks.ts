@@ -14,6 +14,7 @@ export type Task = {
   scheduledEnd: string | null;
   assigneeUserId: string | null;
   calendarEventId: string | null;
+  keyResultId: string | null;
 };
 
 export type TaskWithContext = Task & { keyResultTitle: string; objectiveTitle: string };
@@ -27,11 +28,12 @@ export type TaskRow = {
   scheduled_end: string | null;
   assignee_user_id: string | null;
   calendar_event_id: string | null;
+  key_result_id: string | null;
   updated_at: string;
 };
 
 export const TASK_COLUMNS =
-  "id, title, status, due_date, scheduled_start, scheduled_end, assignee_user_id, calendar_event_id, updated_at";
+  "id, title, status, due_date, scheduled_start, scheduled_end, assignee_user_id, calendar_event_id, key_result_id, updated_at";
 
 export function toTask(row: TaskRow): Task {
   return {
@@ -43,6 +45,7 @@ export function toTask(row: TaskRow): Task {
     scheduledEnd: row.scheduled_end,
     assigneeUserId: row.assignee_user_id,
     calendarEventId: row.calendar_event_id,
+    keyResultId: row.key_result_id,
   };
 }
 
@@ -92,4 +95,34 @@ export async function getGoogleStatus(userId: string): Promise<GoogleStatus> {
     throw new Error("Google の連携状態を取得できませんでした");
   }
   return { connected: data !== null && data.revoked_at === null, connectedAt: data?.connected_at ?? null };
+}
+
+export type KeyResultGroup = { label: string; options: { id: string; label: string }[] };
+
+type KeyResultOptionRow = { id: string; title: string; objectives: { title: string; year: number; quarter: number } | null };
+
+// タスクをひもづける KR の選択肢。四半期ごと・Objective ごとにまとめる（新しい四半期が先）
+export async function listKeyResultGroups({ tenant }: TenantContext): Promise<KeyResultGroup[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("key_results")
+    .select("id, title, objectives(title, year, quarter)")
+    .eq("tenant_id", tenant.id)
+    .order("created_at")
+    .returns<KeyResultOptionRow[]>();
+  if (error) {
+    throw new Error("Key Result を取得できませんでした");
+  }
+  const groups = new Map<string, { sort: string; group: KeyResultGroup }>();
+  for (const kr of data) {
+    const o = kr.objectives;
+    if (!o) {
+      continue;
+    }
+    const label = `${o.year} Q${o.quarter} ／ ${o.title}`;
+    const entry = groups.get(label) ?? { sort: `${o.year}-${o.quarter}`, group: { label, options: [] } };
+    entry.group.options.push({ id: kr.id, label: kr.title });
+    groups.set(label, entry);
+  }
+  return [...groups.values()].sort((a, b) => b.sort.localeCompare(a.sort)).map((e) => e.group);
 }
