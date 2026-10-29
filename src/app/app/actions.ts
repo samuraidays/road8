@@ -5,12 +5,10 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { logDbError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
-import { codePointLength } from "@/lib/text";
+import { parseTenantName } from "@/lib/tenants";
 
 export type CreateTenantState = { name?: string; error?: string };
 
-// DB の check（char_length between 1 and 100）と同じく、コードポイントで数える
-const TENANT_NAME_MAX = 100;
 
 export async function signOut() {
   const supabase = await createClient();
@@ -25,11 +23,11 @@ export async function signOut() {
 export async function createTenant(_prev: CreateTenantState, formData: FormData): Promise<CreateTenantState> {
   const user = await requireUser();
 
-  const name = String(formData.get("name") ?? "").trim();
-  const length = codePointLength(name);
-  if (length < 1 || length > TENANT_NAME_MAX) {
-    return { name, error: `テナント名は1〜${TENANT_NAME_MAX}文字で入力してください` };
+  const parsed = parseTenantName(formData.get("name"));
+  if (!parsed.ok) {
+    return { name: parsed.name, error: parsed.error };
   }
+  const name = parsed.name;
 
   // ID はサーバーで決めて、作成後の遷移先に使う。
   // 作成結果を RETURNING で受け取らない：Owner の所属は AFTER トリガーで作られるため、

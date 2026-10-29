@@ -4,12 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { logDbError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
-import { requireTenant } from "@/lib/tenants";
-import { codePointLength } from "@/lib/text";
+import { parseTenantName, requireTenant } from "@/lib/tenants";
 
 export type SettingsFormState = { error?: string; message?: string };
-
-const TENANT_NAME_MAX = 100;
 
 // テナント名の変更（tenant.update。Owner だけ。RLS でも止まる）
 export async function renameTenant(tenantId: string, _prev: SettingsFormState, formData: FormData): Promise<SettingsFormState> {
@@ -17,10 +14,11 @@ export async function renameTenant(tenantId: string, _prev: SettingsFormState, f
   if (tenant.role !== "owner") {
     return { error: "テナント名を変えられるのは Owner だけです" };
   }
-  const name = String(formData.get("name") ?? "").trim();
-  if (codePointLength(name) < 1 || codePointLength(name) > TENANT_NAME_MAX) {
-    return { error: `テナント名は1〜${TENANT_NAME_MAX}文字で入力してください` };
+  const parsed = parseTenantName(formData.get("name"));
+  if (!parsed.ok) {
+    return { error: parsed.error };
   }
+  const name = parsed.name;
 
   const supabase = await createClient();
   const { error } = await supabase.from("tenants").update({ name }).eq("id", tenant.id);
