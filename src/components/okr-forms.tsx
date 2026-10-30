@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useOptimistic, useState } from "react";
+import { startTransition, useActionState, useOptimistic } from "react";
 import { LockIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -119,13 +119,12 @@ export function ObjectiveForm({
 type KeyResultValues = {
   title: string;
   kind: "manual" | "metric";
-  manualProgress: number;
   startValue: number | null;
   targetValue: number | null;
   unit: string;
 };
 
-// Key Result の入力（ダイアログの中で使う）。進捗を「数値で記録する」か「％で手入力する」かを選ぶ
+// Key Result の入力（ダイアログの中で使う）。新しい KR は名前だけで作り、進捗はひもづくタスクの完了率から出す
 export function KeyResultForm({
   action,
   values,
@@ -139,40 +138,16 @@ export function KeyResultForm({
 }) {
   const [state, formAction, pending] = useFormAction(action);
   const v = state.submitted;
-  const [kind, setKind] = useState<"manual" | "metric">(values?.kind ?? "metric");
+  // 以前に「数値を記録する」で作った KR だけ、編集で今の値・目標・単位を直せる
+  const kind = values?.kind ?? "manual";
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <div className={fieldClassName}>
         <Label htmlFor={`${idPrefix}-title`}>Key Result</Label>
-        <Input id={`${idPrefix}-title`} name="title" defaultValue={v?.title ?? values?.title} required autoFocus placeholder="体重を 72kg から 69kg にする" />
+        <Input id={`${idPrefix}-title`} name="title" defaultValue={v?.title ?? values?.title} required autoFocus placeholder="記事を6本公開する" />
       </div>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1.5 text-sm font-medium">進捗の測り方</legend>
-        <input type="hidden" name="kind" value={kind} />
-        <div className="flex gap-2" role="radiogroup">
-          {(
-            [
-              ["metric", "数値を記録する（体重・本数など）"],
-              ["manual", "％で手入力する"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={kind === value}
-              onClick={() => setKind(value)}
-              className={cn(
-                "flex-1 rounded-lg border px-3 py-2 text-left text-sm",
-                kind === value ? "border-foreground bg-muted font-medium" : "text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      <input type="hidden" name="kind" value={kind} />
       {kind === "metric" ? (
         <div className="flex flex-wrap items-end gap-3">
           <div className={`${fieldClassName} w-28`}>
@@ -189,12 +164,7 @@ export function KeyResultForm({
             <Input id={`${idPrefix}-unit`} name="unit" defaultValue={v?.unit ?? values?.unit ?? ""} placeholder="kg" />
           </div>
         </div>
-      ) : (
-        <div className={`${fieldClassName} w-28`}>
-          <Label htmlFor={`${idPrefix}-progress`}>進捗（%）</Label>
-          <Input id={`${idPrefix}-progress`} name="progress" type="number" min={0} max={100} step={1} defaultValue={v?.progress ?? values?.manualProgress ?? 0} />
-        </div>
-      )}
+      ) : null}
       <ErrorText error={state.error} />
       <Button type="submit" disabled={pending} className="self-end">
         {pending ? "保存中…" : submitLabel}
