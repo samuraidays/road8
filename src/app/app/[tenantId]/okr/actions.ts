@@ -119,17 +119,15 @@ export async function deleteObjective(tenantId: string, objectiveId: string): Pr
 
 // ---- 「なぜ」（本人だけ。設計書 §10-1）----
 
-// 柱か Objective の「なぜ」を保存する。空なら消す。本人の行だけを扱う（RLS でも本人に絞られる）
+// Objective の「なぜ」を保存する（柱の「なぜ」は画面から外した。DB の列は残している）。空なら消す。本人の行だけを扱う（RLS でも本人に絞られる）
 export async function saveReason(
   tenantId: string,
-  target: { pillarId: string } | { objectiveId: string },
+  objectiveId: string,
   _prev: OkrFormState,
   formData: FormData,
 ): Promise<OkrFormState> {
   const { user, tenant } = await requireTenant(tenantId);
-  const column = "pillarId" in target ? "pillar_id" : "objective_id";
-  const targetId = "pillarId" in target ? target.pillarId : target.objectiveId;
-  if (!isUuid(targetId)) {
+  if (!isUuid(objectiveId)) {
     return { error: "対象が見つかりません" };
   }
   const body = text(formData, "body");
@@ -143,7 +141,7 @@ export async function saveReason(
     .select("id")
     .eq("tenant_id", tenant.id)
     .eq("user_id", user.id)
-    .eq(column, targetId)
+    .eq("objective_id", objectiveId)
     .maybeSingle();
   if (existing.error) {
     return failed("reason.write", user.id, tenant.id, existing.error);
@@ -157,7 +155,7 @@ export async function saveReason(
   } else {
     ({ error } = await supabase
       .from("reasons")
-      .insert({ tenant_id: tenant.id, user_id: user.id, [column]: targetId, body }));
+      .insert({ tenant_id: tenant.id, user_id: user.id, objective_id: objectiveId, body }));
     // 23505：同時に送った保存（連打など）が先に作った。そちらを更新する
     if (error?.code === "23505") {
       ({ error } = await supabase
@@ -165,11 +163,11 @@ export async function saveReason(
         .update({ body })
         .eq("tenant_id", tenant.id)
         .eq("user_id", user.id)
-        .eq(column, targetId));
+        .eq("objective_id", objectiveId));
     }
   }
   if (error) {
-    // 23503：柱か Objective がこのテナントにない（複合外部キー）
+    // 23503：Objective がこのテナントにない（複合外部キー）
     if (error.code === "23503") {
       return { error: "対象が見つかりません" };
     }
