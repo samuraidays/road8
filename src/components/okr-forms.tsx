@@ -119,13 +119,12 @@ export function ObjectiveForm({
 type KeyResultValues = {
   title: string;
   kind: "manual" | "metric";
-  manualProgress: number;
   startValue: number | null;
   targetValue: number | null;
   unit: string;
 };
 
-// Key Result の入力（ダイアログの中で使う）。進捗は「今の値 → 目標」と記録した数値から出す
+// Key Result の入力（ダイアログの中で使う）。新しい KR は名前だけで作り、進捗はひもづくタスクの完了率から出す
 export function KeyResultForm({
   action,
   values,
@@ -139,14 +138,14 @@ export function KeyResultForm({
 }) {
   const [state, formAction, pending] = useFormAction(action);
   const v = state.submitted;
-  // 新しく作る KR は数値で記録する。以前に「％で手入力」で作った KR は、編集でもそのまま％で直す
-  const kind = values?.kind ?? "metric";
+  // 以前に「数値を記録する」で作った KR だけ、編集で今の値・目標・単位を直せる
+  const kind = values?.kind ?? "manual";
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <div className={fieldClassName}>
         <Label htmlFor={`${idPrefix}-title`}>Key Result</Label>
-        <Input id={`${idPrefix}-title`} name="title" defaultValue={v?.title ?? values?.title} required autoFocus placeholder="体重を 72kg から 69kg にする" />
+        <Input id={`${idPrefix}-title`} name="title" defaultValue={v?.title ?? values?.title} required autoFocus placeholder="記事を6本公開する" />
       </div>
       <input type="hidden" name="kind" value={kind} />
       {kind === "metric" ? (
@@ -165,12 +164,7 @@ export function KeyResultForm({
             <Input id={`${idPrefix}-unit`} name="unit" defaultValue={v?.unit ?? values?.unit ?? ""} placeholder="kg" />
           </div>
         </div>
-      ) : (
-        <div className={`${fieldClassName} w-28`}>
-          <Label htmlFor={`${idPrefix}-progress`}>進捗（%）</Label>
-          <Input id={`${idPrefix}-progress`} name="progress" type="number" min={0} max={100} step={1} defaultValue={v?.progress ?? values?.manualProgress ?? 0} />
-        </div>
-      )}
+      ) : null}
       <ErrorText error={state.error} />
       <Button type="submit" disabled={pending} className="self-end">
         {pending ? "保存中…" : submitLabel}
