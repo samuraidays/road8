@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useOptimistic, useState } from "react";
+import { startTransition, useActionState, useOptimistic } from "react";
 import { LockIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -125,7 +125,7 @@ type KeyResultValues = {
   unit: string;
 };
 
-// Key Result の入力（ダイアログの中で使う）。進捗を「数値で記録する」か「％で手入力する」かを選ぶ
+// Key Result の入力（ダイアログの中で使う）。進捗は「今の値 → 目標」と記録した数値から出す
 export function KeyResultForm({
   action,
   values,
@@ -139,7 +139,8 @@ export function KeyResultForm({
 }) {
   const [state, formAction, pending] = useFormAction(action);
   const v = state.submitted;
-  const [kind, setKind] = useState<"manual" | "metric">(values?.kind ?? "metric");
+  // 新しく作る KR は数値で記録する。以前に「％で手入力」で作った KR は、編集でもそのまま％で直す
+  const kind = values?.kind ?? "metric";
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -147,32 +148,7 @@ export function KeyResultForm({
         <Label htmlFor={`${idPrefix}-title`}>Key Result</Label>
         <Input id={`${idPrefix}-title`} name="title" defaultValue={v?.title ?? values?.title} required autoFocus placeholder="体重を 72kg から 69kg にする" />
       </div>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1.5 text-sm font-medium">進捗の測り方</legend>
-        <input type="hidden" name="kind" value={kind} />
-        <div className="flex gap-2" role="radiogroup">
-          {(
-            [
-              ["metric", "数値を記録する（体重・本数など）"],
-              ["manual", "％で手入力する"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={kind === value}
-              onClick={() => setKind(value)}
-              className={cn(
-                "flex-1 rounded-lg border px-3 py-2 text-left text-sm",
-                kind === value ? "border-foreground bg-muted font-medium" : "text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      <input type="hidden" name="kind" value={kind} />
       {kind === "metric" ? (
         <div className="flex flex-wrap items-end gap-3">
           <div className={`${fieldClassName} w-28`}>
