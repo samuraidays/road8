@@ -9,7 +9,6 @@ export type Pillar = {
   title: string;
   description: string;
   currentObjectiveCount: number;
-  reason: string;
 };
 
 export type GoalsView = {
@@ -17,12 +16,11 @@ export type GoalsView = {
   pillars: Pillar[];
 };
 
-// 人生のゴールと柱、柱ごとの今期の Objective の数、本人の「なぜ」。
-// 利用者の JWT で読むので、「なぜ」は RLS で本人の分だけに絞られる（設計書 §10-1）
-export async function getGoals({ user, tenant }: TenantContext): Promise<GoalsView> {
+// 人生のゴールと柱、柱ごとの今期の Objective の数
+export async function getGoals({ tenant }: TenantContext): Promise<GoalsView> {
   const supabase = await createClient();
   const { year, quarter } = currentYearQuarter();
-  const [goal, pillars, objectives, reasons] = await Promise.all([
+  const [goal, pillars, objectives] = await Promise.all([
     supabase.from("life_goals").select("statement").eq("tenant_id", tenant.id).maybeSingle(),
     supabase
       .from("pillars")
@@ -31,14 +29,8 @@ export async function getGoals({ user, tenant }: TenantContext): Promise<GoalsVi
       .order("position")
       .order("created_at"),
     supabase.from("objectives").select("pillar_id").eq("tenant_id", tenant.id).eq("year", year).eq("quarter", quarter),
-    supabase
-      .from("reasons")
-      .select("pillar_id, body")
-      .eq("tenant_id", tenant.id)
-      .eq("user_id", user.id)
-      .not("pillar_id", "is", null),
   ]);
-  const error = goal.error ?? pillars.error ?? objectives.error ?? reasons.error;
+  const error = goal.error ?? pillars.error ?? objectives.error;
   if (error) {
     throw new Error("人生のゴールを取得できませんでした");
   }
@@ -51,7 +43,6 @@ export async function getGoals({ user, tenant }: TenantContext): Promise<GoalsVi
       title: p.title,
       description: p.description,
       currentObjectiveCount: (objectives.data ?? []).filter((o) => o.pillar_id === p.id).length,
-      reason: (reasons.data ?? []).find((r) => r.pillar_id === p.id)?.body ?? "",
     })),
   };
 }

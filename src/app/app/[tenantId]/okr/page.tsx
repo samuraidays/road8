@@ -174,7 +174,7 @@ function ObjectiveCard({ objective: o, tenantId, pillars, members, isOwner, toda
       <div className="flex flex-col gap-1">
         <PrivateLabel>なぜ この四半期にやるか（本人だけ）</PrivateLabel>
         <InlineText
-          action={saveReason.bind(null, tenantId, { objectiveId: o.id })}
+          action={saveReason.bind(null, tenantId, o.id)}
           name="body"
           value={o.reason}
           placeholder="クリックして、これを目指す理由を書く"

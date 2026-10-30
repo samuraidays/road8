@@ -1,14 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { PillarForm } from "@/components/goal-forms";
-import { PrivateLabel } from "@/components/okr-forms";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { AddDialog, InlineText, RowActions, type MenuItemSpec } from "@/components/ux";
 import { getGoals, type Pillar } from "@/lib/goals";
 import { currentYearQuarter, quarterMonths } from "@/lib/period";
 import { requireTenant } from "@/lib/tenants";
 import { cn } from "@/lib/utils";
-import { saveReason } from "../okr/actions";
 import { createPillar, deletePillar, movePillar, saveLifeGoal, updatePillar } from "./actions";
 
 export default function GoalsPage({ params }: PageProps<"/app/[tenantId]/goals">) {
@@ -95,7 +93,7 @@ function PillarCard({
   ];
 
   return (
-    <li className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+    <li className="rounded-xl border bg-card p-4">
       <div className="flex items-start gap-3">
         {/* 柱の名前はカードの見出しとして大きく出す（番号も色を付けて目立たせる） */}
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground tabular-nums">
@@ -118,20 +116,10 @@ function PillarCard({
             editForm={<PillarForm action={updatePillar.bind(null, tenantId, p.id)} values={p} submitLabel="保存" idPrefix={`pillar-${p.id}`} />}
             items={items}
             deleteTitle="柱を削除しますか？"
-            deleteDescription="ひもづいた Objective は残り、柱が外れます。この柱の「なぜ」は消えます。"
+            deleteDescription="ひもづいた Objective は残り、柱が外れます。"
             deleteAction={deletePillar.bind(null, tenantId, p.id)}
           />
         ) : null}
-      </div>
-      <div className="flex flex-col gap-1">
-        <PrivateLabel>なぜ（本人だけ）</PrivateLabel>
-        <InlineText
-          action={saveReason.bind(null, tenantId, { pillarId: p.id })}
-          name="body"
-          value={p.reason}
-          placeholder="クリックして、これを目指す理由を書く"
-          label="なぜ"
-        />
       </div>
     </li>
   );
