@@ -41,7 +41,6 @@ export type Objective = {
   ownerUserId: string | null;
   year: number;
   quarter: number;
-  reason: string;
   keyResults: KeyResult[];
 };
 
@@ -124,41 +123,32 @@ function toKeyResult(row: KeyResultRow, weekDates: string[]): KeyResult {
   };
 }
 
-// 指定した四半期の Objective と、その Key Result・数値の記録・習慣（今週の実施）・本人の「なぜ」。
+// 指定した四半期の Objective と、その Key Result・数値の記録・習慣（今週の実施）。
 // requireTenant() で所属を確かめた結果を受け取る。利用者の JWT で読むので RLS でも絞られる
 export async function listObjectives(
-  { user, tenant }: TenantContext,
+  { tenant }: TenantContext,
   year: number,
   quarter: number,
 ): Promise<Objective[]> {
   const supabase = await createClient();
   const weekDates = currentWeekDates();
-  const [objectives, reasons] = await Promise.all([
-    supabase
-      .from("objectives")
-      .select(
-        "id, title, description, pillar_id, owner_user_id, year, quarter, " +
-          "key_results(id, title, kind, progress, start_value, target_value, unit, score, next_action, created_at, " +
-          "kr_measurements(measured_on, value), " +
-          "habits(id, title, times_per_week, archived_at, created_at, habit_checks(done_on)), " +
-          `tasks(${TASK_COLUMNS}))`,
-      )
-      .eq("tenant_id", tenant.id)
-      .eq("year", year)
-      .eq("quarter", quarter)
-      .gte("key_results.habits.habit_checks.done_on", weekDates[0])
-      .lte("key_results.habits.habit_checks.done_on", weekDates[6])
-      .order("created_at", { ascending: true })
-      .returns<ObjectiveRow[]>(),
-    supabase
-      .from("reasons")
-      .select("objective_id, body")
-      .eq("tenant_id", tenant.id)
-      .eq("user_id", user.id)
-      .not("objective_id", "is", null)
-      .returns<{ objective_id: string; body: string }[]>(),
-  ]);
-  if (objectives.error || reasons.error) {
+  const objectives = await supabase
+    .from("objectives")
+    .select(
+      "id, title, description, pillar_id, owner_user_id, year, quarter, " +
+        "key_results(id, title, kind, progress, start_value, target_value, unit, score, next_action, created_at, " +
+        "kr_measurements(measured_on, value), " +
+        "habits(id, title, times_per_week, archived_at, created_at, habit_checks(done_on)), " +
+        `tasks(${TASK_COLUMNS}))`,
+    )
+    .eq("tenant_id", tenant.id)
+    .eq("year", year)
+    .eq("quarter", quarter)
+    .gte("key_results.habits.habit_checks.done_on", weekDates[0])
+    .lte("key_results.habits.habit_checks.done_on", weekDates[6])
+    .order("created_at", { ascending: true })
+    .returns<ObjectiveRow[]>();
+  if (objectives.error) {
     throw new Error("OKR を取得できませんでした");
   }
 
@@ -170,7 +160,6 @@ export async function listObjectives(
     ownerUserId: row.owner_user_id,
     year: row.year,
     quarter: row.quarter,
-    reason: reasons.data.find((r) => r.objective_id === row.id)?.body ?? "",
     keyResults: [...row.key_results]
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
       .map((kr) => toKeyResult(kr, weekDates)),
