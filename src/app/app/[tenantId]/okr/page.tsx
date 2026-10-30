@@ -201,10 +201,13 @@ function KeyResultItem({
   googleConnected: boolean;
 }) {
   const latest = kr.measurements.at(-1);
+  const doneTasks = kr.tasks.filter((t) => t.status === "done").length;
   const summary =
     kr.kind === "metric"
       ? `${latest ? formatValue(latest.value, kr.unit) : "未記録"} → ${formatValue(kr.targetValue, kr.unit)}`
-      : `${kr.progress}%`;
+      : kr.tasks.length === 0
+        ? "タスクなし"
+        : `タスク ${doneTasks}/${kr.tasks.length}`;
 
   return (
     <li className="flex flex-col gap-3 py-4 first:pt-0">
@@ -214,7 +217,7 @@ function KeyResultItem({
             <span className="min-w-0 font-medium break-words">{kr.title}</span>
             <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
               {summary}
-              {kr.kind === "metric" ? `（${kr.progress}%）` : null}
+              {kr.kind === "metric" || kr.tasks.length > 0 ? `（${kr.progress}%）` : null}
             </span>
           </div>
           <div className="h-1.5 rounded-full bg-muted" role="progressbar" aria-valuenow={kr.progress} aria-valuemin={0} aria-valuemax={100} aria-label={kr.title}>

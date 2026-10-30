@@ -18,9 +18,8 @@ export type KeyResult = {
   id: string;
   title: string;
   kind: "manual" | "metric";
-  // 0〜100。数値型は最新の記録から計算する
+  // 0〜100。数値型は最新の記録から、それ以外はひもづくタスクの完了率から計算する
   progress: number;
-  manualProgress: number;
   startValue: number | null;
   targetValue: number | null;
   unit: string;
@@ -85,29 +84,35 @@ export function metricProgress(start: number, target: number, latest: number | u
   return Math.round(Math.min(1, Math.max(0, ratio)) * 100);
 }
 
+// タスク型の進捗：KR にひもづくタスクのうち、完了したものの割合（タスクがなければ 0）
+export function taskProgress(tasks: Task[]): number {
+  return tasks.length === 0 ? 0 : Math.round((tasks.filter((t) => t.status === "done").length / tasks.length) * 100);
+}
+
 function toKeyResult(row: KeyResultRow, weekDates: string[]): KeyResult {
   const measurements = [...row.kr_measurements]
     .sort((a, b) => a.measured_on.localeCompare(b.measured_on))
     .map((m) => ({ measuredOn: m.measured_on, value: Number(m.value) }));
   const startValue = toNumber(row.start_value);
   const targetValue = toNumber(row.target_value);
+  const tasks = row.tasks.map(toTask).sort(compareTasks);
+  // kind が manual の KR（以前の「％で手入力」を含む）は、保存した％ではなくタスクの完了率を進捗にする
   const progress =
     row.kind === "metric" && startValue !== null && targetValue !== null
       ? metricProgress(startValue, targetValue, measurements.at(-1)?.value)
-      : row.progress;
+      : taskProgress(tasks);
   return {
     id: row.id,
     title: row.title,
     kind: row.kind,
     progress,
-    manualProgress: row.progress,
     startValue,
     targetValue,
     unit: row.unit,
     score: toNumber(row.score),
     nextAction: row.next_action,
     measurements,
-    tasks: row.tasks.map(toTask).sort(compareTasks),
+    tasks,
     habits: [...row.habits]
       .filter((h) => h.archived_at === null)
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
