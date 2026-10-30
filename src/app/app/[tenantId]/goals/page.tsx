@@ -97,9 +97,12 @@ function PillarCard({
   return (
     <li className="flex flex-col gap-3 rounded-xl border bg-card p-4">
       <div className="flex items-start gap-3">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs tabular-nums">{index + 1}</span>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h3 className="font-medium break-words">{p.title}</h3>
+        {/* 柱の名前はカードの見出しとして大きく出す（番号も色を付けて目立たせる） */}
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground tabular-nums">
+          {index + 1}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h3 className="text-lg leading-7 font-semibold break-words">{p.title}</h3>
           {p.description ? <p className="text-sm break-words whitespace-pre-wrap text-muted-foreground">{p.description}</p> : null}
         </div>
         <Link
