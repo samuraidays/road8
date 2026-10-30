@@ -283,7 +283,7 @@ OKR を「人生のゴールを達成するための行動管理」として使�
 | 範囲 | 対象 | RLS の条件 |
 |---|---|---|
 | テナントのメンバー | 人生のゴール、柱、Objective、Key Result、数値の記録、習慣と実施の記録、KR の採点 | `private.is_member(tenant_id)`（既存の OKR と同じ） |
-| **本人だけ**（同じテナントの Owner からも見えない） | Objective の「なぜ」（柱の「なぜ」は 2026-10-31 に画面から外した。`reasons.pillar_id` と RLS は残している）、週の振り返り、四半期の振り返りの文章 | `user_id = (select auth.uid()) and private.is_member(tenant_id)` |
+| **本人だけ**（同じテナントの Owner からも見えない） | 週の振り返り、四半期の振り返りの文章（柱・Objective の「なぜ」は 2026-10-31 に画面から外した。`reasons` のテーブルと RLS は、次のマイグレーションで片付けるまで残している） | `user_id = (select auth.uid()) and private.is_member(tenant_id)` |
 
 本人だけのデータは、メンバーに見せる表の列にせず **別の表** に分ける（列にすると、行を読めるメンバーに一緒に読まれるため。列単位の grant でも隠せるが、本人かどうかで列の見え方を変えることはできない）。
 
