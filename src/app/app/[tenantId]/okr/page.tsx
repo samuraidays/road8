@@ -2,10 +2,10 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon, RepeatIcon } from "lucide-react";
 import { MetricChart } from "@/components/metric-chart";
-import { HabitForm, HabitWeek, KeyResultForm, MeasurementForm, ObjectiveForm, PrivateLabel, type Option } from "@/components/okr-forms";
+import { HabitForm, HabitWeek, KeyResultForm, MeasurementForm, ObjectiveForm, type Option } from "@/components/okr-forms";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { TaskItem } from "@/components/task-list";
-import { AddDialog, InlineText, QuickAdd, RowActions } from "@/components/ux";
+import { AddDialog, QuickAdd, RowActions } from "@/components/ux";
 import { listPillarOptions } from "@/lib/goals";
 import { listMembers, memberLabel } from "@/lib/members";
 import { listObjectives, summarizeQuarters, type KeyResult, type Objective } from "@/lib/okr";
@@ -23,7 +23,6 @@ import {
   deleteKeyResult,
   deleteObjective,
   recordMeasurement,
-  saveReason,
   toggleHabitCheck,
   updateKeyResult,
   updateObjective,
@@ -168,17 +167,6 @@ function ObjectiveCard({ objective: o, tenantId, pillars, members, isOwner, toda
           deleteTitle="Objective を削除しますか？"
           deleteDescription="Key Result・数値の記録・習慣・ひもづいたタスクもすべて消えます。元に戻せません。"
           deleteAction={isOwner ? deleteObjective.bind(null, tenantId, o.id) : undefined}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <PrivateLabel>なぜ この四半期にやるか（本人だけ）</PrivateLabel>
-        <InlineText
-          action={saveReason.bind(null, tenantId, o.id)}
-          name="body"
-          value={o.reason}
-          placeholder="クリックして、これを目指す理由を書く"
-          label="なぜ"
         />
       </div>
 

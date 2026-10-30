@@ -2,15 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { logDbError } from "@/lib/log";
-import { parseDate, parseHabit, parseKeyResult, parseMeasurement, parseObjective, text } from "@/lib/okr-input";
+import { parseDate, parseHabit, parseKeyResult, parseMeasurement, parseObjective } from "@/lib/okr-input";
 import { currentWeekDates, todayInJapan } from "@/lib/period";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid, requireTenant } from "@/lib/tenants";
-import { codePointLength } from "@/lib/text";
 
 export type OkrFormState = { error?: string };
-
-const REASON_MAX = 2000;
 
 // tenantId と各 ID は bind でフォームから届くので信用しない。requireTenant() で所属を確かめ、
 // 更新・削除は tenant_id でも絞る（RLS と複合外部キーでも止まる）
@@ -112,66 +109,6 @@ export async function deleteObjective(tenantId: string, objectiveId: string): Pr
   }
   if (data.length === 0) {
     return NOT_FOUND.objective;
-  }
-  revalidate(tenant.id);
-  return {};
-}
-
-// ---- 「なぜ」（本人だけ。設計書 §10-1）----
-
-// Objective の「なぜ」を保存する（柱の「なぜ」は画面から外した。DB の列は残している）。空なら消す。本人の行だけを扱う（RLS でも本人に絞られる）
-export async function saveReason(
-  tenantId: string,
-  objectiveId: string,
-  _prev: OkrFormState,
-  formData: FormData,
-): Promise<OkrFormState> {
-  const { user, tenant } = await requireTenant(tenantId);
-  if (!isUuid(objectiveId)) {
-    return { error: "対象が見つかりません" };
-  }
-  const body = text(formData, "body");
-  if (codePointLength(body) > REASON_MAX) {
-    return { error: `${REASON_MAX}文字以内で入力してください` };
-  }
-
-  const supabase = await createClient();
-  const existing = await supabase
-    .from("reasons")
-    .select("id")
-    .eq("tenant_id", tenant.id)
-    .eq("user_id", user.id)
-    .eq("objective_id", objectiveId)
-    .maybeSingle();
-  if (existing.error) {
-    return failed("reason.write", user.id, tenant.id, existing.error);
-  }
-
-  let error;
-  if (body === "") {
-    ({ error } = existing.data ? await supabase.from("reasons").delete().eq("id", existing.data.id) : { error: null });
-  } else if (existing.data) {
-    ({ error } = await supabase.from("reasons").update({ body }).eq("id", existing.data.id));
-  } else {
-    ({ error } = await supabase
-      .from("reasons")
-      .insert({ tenant_id: tenant.id, user_id: user.id, objective_id: objectiveId, body }));
-    // 23505：同時に送った保存（連打など）が先に作った。そちらを更新する
-    if (error?.code === "23505") {
-      ({ error } = await supabase
-        .from("reasons")
-        .update({ body })
-        .eq("tenant_id", tenant.id)
-        .eq("user_id", user.id)
-        .eq("objective_id", objectiveId));
-    }
-  }
-  if (error) {
-    // 23503：Objective がこのテナントにない（複合外部キー）
-    if (error.code === "23503") {
-      return { error: "対象が見つかりません" };
-    }
-    return failed("reason.write", user.id, tenant.id, error);
   }
   revalidate(tenant.id);
   return {};

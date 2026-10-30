@@ -143,7 +143,7 @@ export async function updatePillar(
   return {};
 }
 
-// 柱を消すと、ひもづいた Objective からは柱が外れ（Objective は残る）、柱の「なぜ」は消える
+// 柱を消すと、ひもづいた Objective からは柱が外れる（Objective は残る）
 export async function deletePillar(tenantId: string, pillarId: string): Promise<GoalFormState> {
   const context = await requireOwner(tenantId);
   if (!("tenant" in context)) {
